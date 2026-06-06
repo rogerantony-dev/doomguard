@@ -22,6 +22,10 @@
     "web": {
       "favicon": "./assets/favicon.png"
     },
+    "plugins": [
+      "expo-dev-client",
+      "./plugin/withReelCounter"
+    ],
     "extra": {
       "eas": {
         "projectId": "693a0d53-05c2-4413-8ac9-6741f667c438"
