@@ -4,6 +4,7 @@
   "main": "index.ts",
   "dependencies": {
     "expo": "^54.0.0",
+    "expo-dev-client": "~6.0.21",
     "expo-status-bar": "~3.0.9",
     "nativewind": "^4.2.5",
     "react": "19.1.0",
