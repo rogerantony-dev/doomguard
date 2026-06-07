@@ -72,9 +72,11 @@ export default function App() {
 
         <View className="mt-auto rounded-2xl bg-zinc-900 p-5">
           <Text className="text-sm leading-5 text-zinc-400">
-            Once both are on, open Instagram and start scrolling Reels — the pill
-            appears at the top. Doomguard only reads Instagram's screen, nothing
-            else, and the count lives only on your device.
+            Once both are on, open Instagram and start scrolling Reels — a pill
+            appears at the top with an eye that grows bloodshot the more you
+            watch (calm under 50, fully red as the day's count climbs). Doomguard
+            only reads Instagram's screen, nothing else, and the count lives only
+            on your device.
           </Text>
         </View>
         </View>

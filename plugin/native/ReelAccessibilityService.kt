@@ -1,17 +1,25 @@
 package com.rogerantony.doomguard
 
 import android.accessibilityservice.AccessibilityService
+import android.animation.ValueAnimator
 import android.content.Context
+import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Paint
 import android.graphics.PixelFormat
+import android.graphics.RadialGradient
+import android.graphics.Shader
+import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.provider.Settings
 import android.util.TypedValue
 import android.view.Gravity
+import android.view.View
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
+import android.widget.LinearLayout
 import android.widget.TextView
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -37,7 +45,9 @@ class ReelAccessibilityService : AccessibilityService() {
     private val debug = false
 
     private var windowManager: WindowManager? = null
-    private var pill: TextView? = null
+    private var pill: View? = null
+    private var eyeView: EyeView? = null
+    private var pillLabel: TextView? = null
     private var overlayShown = false
 
     // De-dupe state. Primary signal is the reels pager's scroll position, which
@@ -93,9 +103,9 @@ class ReelAccessibilityService : AccessibilityService() {
 
         if (debug) {
             // Always visible on Instagram so we can read what the detector sees.
-            render(debugText(root, inReels, position, signature))
+            render(currentCount(), debugText(root, inReels, position, signature))
         } else if (inReels) {
-            render(pillText(currentCount()))
+            render(currentCount())
         } else {
             hideOverlay()
         }
@@ -193,52 +203,85 @@ class ReelAccessibilityService : AccessibilityService() {
 
     // --- Floating pill overlay -------------------------------------------------
 
-    /** Show the pill (creating it on first call) and set its text. */
-    private fun render(text: String) {
+    /**
+     * Show the pill (building it on first call) and update it for [count].
+     * The eye reddens with the count; [debugText] overrides the label when set.
+     */
+    private fun render(count: Int, debugText: String? = null) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         if (!Settings.canDrawOverlays(this)) return
 
-        if (!overlayShown) {
-            val textView = TextView(this).apply {
-                setTextColor(Color.WHITE)
-                setTextSize(TypedValue.COMPLEX_UNIT_SP, if (debug) 11f else 14f)
-                setPadding(dp(16), dp(8), dp(16), dp(8))
-                background = pillBackground()
-            }
-            val params = WindowManager.LayoutParams(
-                WindowManager.LayoutParams.WRAP_CONTENT,
-                WindowManager.LayoutParams.WRAP_CONTENT,
-                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                    WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
-                PixelFormat.TRANSLUCENT
-            ).apply {
-                gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
-                y = dp(56)
-            }
-            runCatching {
-                windowManager?.addView(textView, params)
-                pill = textView
-                overlayShown = true
-            }
+        if (!overlayShown) buildPill()
+        eyeView?.setIntensity(rednessFor(count))
+        pillLabel?.text = debugText ?: pillText(count)
+    }
+
+    private fun buildPill() {
+        val eye = EyeView(this)
+        val label = TextView(this).apply {
+            setTextColor(Color.WHITE)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, if (debug) 11f else 15f)
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            letterSpacing = 0.01f
         }
-        pill?.text = text
+
+        val container = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(14), dp(10), dp(18), dp(10))
+            background = pillBackground()
+            elevation = dp(6).toFloat()
+            addView(
+                eye,
+                LinearLayout.LayoutParams(dp(38), dp(26)).apply { rightMargin = dp(11) }
+            )
+            addView(label)
+        }
+
+        val params = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
+            y = dp(52)
+        }
+
+        runCatching {
+            windowManager?.addView(container, params)
+            pill = container
+            eyeView = eye
+            pillLabel = label
+            overlayShown = true
+        }
     }
 
     private fun hideOverlay() {
         if (!overlayShown) return
         pill?.let { view -> runCatching { windowManager?.removeView(view) } }
         pill = null
+        eyeView = null
+        pillLabel = null
         overlayShown = false
     }
 
-    private fun pillText(count: Int): String = "🎬  $count reels today"
+    private fun pillText(count: Int): String =
+        if (count == 1) "1 reel today" else "$count reels today"
+
+    /** 0 below 50 reels, ramping to fully bloodshot (1f) by ~200. */
+    private fun rednessFor(count: Int): Float =
+        ((count - 50f) / 150f).coerceIn(0f, 1f)
 
     private fun pillBackground(): GradientDrawable =
-        GradientDrawable().apply {
-            cornerRadius = dp(22).toFloat()
-            setColor(Color.parseColor("#E6101012"))
-            setStroke(dp(1), Color.parseColor("#33FFFFFF"))
+        GradientDrawable(
+            GradientDrawable.Orientation.TOP_BOTTOM,
+            intArrayOf(Color.parseColor("#F21B1B1F"), Color.parseColor("#F20E0E12"))
+        ).apply {
+            cornerRadius = dp(24).toFloat()
+            setStroke(dp(1), Color.parseColor("#26FFFFFF"))
         }
 
     private fun dp(value: Int): Int =
@@ -303,5 +346,136 @@ class ReelAccessibilityService : AccessibilityService() {
             }
         }
         return results.toList()
+    }
+}
+
+/**
+ * A small, hand-drawn eye that grows bloodshot as [intensity] rises from 0
+ * (calm, healthy) to 1 (fully red, veiny). It idly blinks and, once red, emits
+ * a soft pulsing glow — giving the pill a bit of life.
+ */
+private class EyeView(context: Context) : View(context) {
+
+    private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+
+    private var intensity = 0f // 0..1 redness
+    private var pulse = 0f // 0..1 glow breathing
+    private var openness = 1f // 1 open .. ~0 mid-blink
+
+    private var pulseAnimator: ValueAnimator? = null
+    private var blinkAnimator: ValueAnimator? = null
+
+    fun setIntensity(value: Float) {
+        val clamped = value.coerceIn(0f, 1f)
+        if (clamped != intensity) {
+            intensity = clamped
+            invalidate()
+        }
+    }
+
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+        pulseAnimator = ValueAnimator.ofFloat(0f, 1f).apply {
+            duration = 1500L
+            repeatMode = ValueAnimator.REVERSE
+            repeatCount = ValueAnimator.INFINITE
+            addUpdateListener {
+                pulse = it.animatedValue as Float
+                if (intensity > 0f) invalidate()
+            }
+            start()
+        }
+        scheduleBlink()
+    }
+
+    override fun onDetachedFromWindow() {
+        pulseAnimator?.cancel()
+        blinkAnimator?.cancel()
+        removeCallbacks(blinkRunnable)
+        super.onDetachedFromWindow()
+    }
+
+    private val blinkRunnable = Runnable { blinkOnce() }
+
+    private fun scheduleBlink() {
+        // A touch more frequent (twitchy) as the eye gets more strained.
+        val delay = (4200L - 1800L * intensity).toLong()
+        postDelayed(blinkRunnable, delay)
+    }
+
+    private fun blinkOnce() {
+        blinkAnimator?.cancel()
+        blinkAnimator = ValueAnimator.ofFloat(1f, 0.08f, 1f).apply {
+            duration = 220L
+            addUpdateListener {
+                openness = it.animatedValue as Float
+                invalidate()
+            }
+            start()
+        }
+        scheduleBlink()
+    }
+
+    override fun onDraw(canvas: Canvas) {
+        val w = width.toFloat()
+        val h = height.toFloat()
+        val cx = w / 2f
+        val cy = h / 2f
+        val eyeW = w * 0.94f
+        val eyeH = h * 0.66f * openness
+
+        // Pulsing red glow behind the eye when bloodshot.
+        if (intensity > 0f) {
+            val glowAlpha = (intensity * (0.30f + 0.30f * pulse) * 255f).toInt().coerceIn(0, 255)
+            paint.shader = RadialGradient(
+                cx, cy, w * 0.62f,
+                Color.argb(glowAlpha, 255, 45, 32), Color.TRANSPARENT,
+                Shader.TileMode.CLAMP
+            )
+            paint.style = Paint.Style.FILL
+            canvas.drawCircle(cx, cy, w * 0.62f, paint)
+            paint.shader = null
+        }
+
+        // Sclera (white of the eye), tinting pink->red with intensity.
+        val sclera = lerpColor(Color.WHITE, Color.rgb(255, 214, 208), intensity)
+        paint.style = Paint.Style.FILL
+        paint.color = sclera
+        canvas.drawOval(cx - eyeW / 2f, cy - eyeH / 2f, cx + eyeW / 2f, cy + eyeH / 2f, paint)
+
+        // Bloodshot veins fade in as intensity climbs.
+        if (intensity > 0.02f && openness > 0.4f) {
+            paint.style = Paint.Style.STROKE
+            paint.strokeWidth = (eyeH * 0.045f).coerceAtLeast(1.5f)
+            paint.color = Color.argb((intensity * 210f).toInt().coerceIn(0, 255), 214, 28, 22)
+            val lx = cx - eyeW * 0.46f
+            val rx = cx + eyeW * 0.46f
+            canvas.drawLine(lx, cy - eyeH * 0.08f, cx - eyeH * 0.55f, cy + eyeH * 0.10f, paint)
+            canvas.drawLine(lx, cy + eyeH * 0.12f, cx - eyeH * 0.50f, cy - eyeH * 0.04f, paint)
+            canvas.drawLine(rx, cy - eyeH * 0.12f, cx + eyeH * 0.55f, cy + eyeH * 0.08f, paint)
+            canvas.drawLine(rx, cy + eyeH * 0.10f, cx + eyeH * 0.50f, cy - eyeH * 0.06f, paint)
+            paint.style = Paint.Style.FILL
+        }
+
+        // Iris + pupil + highlight, hidden when the eye is mid-blink.
+        if (openness > 0.35f) {
+            val irisR = (eyeH * 0.46f)
+            val iris = lerpColor(Color.rgb(86, 116, 134), Color.rgb(158, 22, 16), intensity)
+            paint.color = iris
+            canvas.drawCircle(cx, cy, irisR, paint)
+            paint.color = Color.rgb(14, 14, 18)
+            canvas.drawCircle(cx, cy, irisR * 0.52f, paint)
+            paint.color = Color.argb(225, 255, 255, 255)
+            canvas.drawCircle(cx - irisR * 0.30f, cy - irisR * 0.30f, irisR * 0.18f, paint)
+        }
+    }
+
+    private fun lerpColor(from: Int, to: Int, t: Float): Int {
+        val tt = t.coerceIn(0f, 1f)
+        return Color.rgb(
+            (Color.red(from) + (Color.red(to) - Color.red(from)) * tt).toInt(),
+            (Color.green(from) + (Color.green(to) - Color.green(from)) * tt).toInt(),
+            (Color.blue(from) + (Color.blue(to) - Color.blue(from)) * tt).toInt()
+        )
     }
 }
