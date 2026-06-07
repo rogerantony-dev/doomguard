@@ -31,6 +31,11 @@ class ReelAccessibilityService : AccessibilityService() {
 
     private val instagramPackage = "com.instagram.android"
 
+    // When true the pill always shows while Instagram is foreground and prints
+    // what the detector sees (in-reels flag, sampled view-ids, signature). Flip
+    // to true only for a tuning build — it's noisy and not for real use.
+    private val debug = false
+
     private var windowManager: WindowManager? = null
     private var pill: TextView? = null
     private var overlayShown = false
@@ -58,22 +63,38 @@ class ReelAccessibilityService : AccessibilityService() {
         }
 
         val root = rootInActiveWindow ?: return
-
-        if (!isReels(root)) {
-            hideOverlay()
-            return
-        }
-
-        showOverlay()
-
+        val inReels = isReels(root)
         val signature = reelSignature(root)
-        if (signature != null && signature != lastSignature) {
+
+        if (inReels && signature != null && signature != lastSignature) {
             val now = System.currentTimeMillis()
             if (now - lastIncrementAt > 350L) {
                 lastSignature = signature
                 lastIncrementAt = now
                 increment()
             }
+        }
+
+        if (debug) {
+            // Always visible on Instagram so we can read what the detector sees.
+            render(debugText(root, inReels, signature))
+        } else if (inReels) {
+            render(pillText(currentCount()))
+        } else {
+            hideOverlay()
+        }
+    }
+
+    private fun debugText(
+        root: AccessibilityNodeInfo,
+        inReels: Boolean,
+        signature: String?,
+    ): String {
+        val ids = collectViewIdFragments(root, 6).joinToString(", ")
+        return buildString {
+            append("reels=").append(inReels).append("  n=").append(currentCount()).append('\n')
+            append("sig=").append(signature ?: "—").append('\n')
+            append("ids=").append(if (ids.isBlank()) "—" else ids)
         }
     }
 
@@ -132,41 +153,40 @@ class ReelAccessibilityService : AccessibilityService() {
     private fun increment() {
         val next = currentCount() + 1
         prefs.edit().putString("date", today()).putInt("count", next).apply()
-        updatePill(next)
     }
 
     // --- Floating pill overlay -------------------------------------------------
 
-    private fun showOverlay() {
-        if (overlayShown) return
+    /** Show the pill (creating it on first call) and set its text. */
+    private fun render(text: String) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         if (!Settings.canDrawOverlays(this)) return
 
-        val textView = TextView(this).apply {
-            text = pillText(currentCount())
-            setTextColor(Color.WHITE)
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
-            setPadding(dp(16), dp(8), dp(16), dp(8))
-            background = pillBackground()
+        if (!overlayShown) {
+            val textView = TextView(this).apply {
+                setTextColor(Color.WHITE)
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, if (debug) 11f else 14f)
+                setPadding(dp(16), dp(8), dp(16), dp(8))
+                background = pillBackground()
+            }
+            val params = WindowManager.LayoutParams(
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                    WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+                PixelFormat.TRANSLUCENT
+            ).apply {
+                gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
+                y = dp(56)
+            }
+            runCatching {
+                windowManager?.addView(textView, params)
+                pill = textView
+                overlayShown = true
+            }
         }
-
-        val params = WindowManager.LayoutParams(
-            WindowManager.LayoutParams.WRAP_CONTENT,
-            WindowManager.LayoutParams.WRAP_CONTENT,
-            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
-            PixelFormat.TRANSLUCENT
-        ).apply {
-            gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
-            y = dp(56)
-        }
-
-        runCatching {
-            windowManager?.addView(textView, params)
-            pill = textView
-            overlayShown = true
-        }
+        pill?.text = text
     }
 
     private fun hideOverlay() {
@@ -174,10 +194,6 @@ class ReelAccessibilityService : AccessibilityService() {
         pill?.let { view -> runCatching { windowManager?.removeView(view) } }
         pill = null
         overlayShown = false
-    }
-
-    private fun updatePill(count: Int) {
-        pill?.text = pillText(count)
     }
 
     private fun pillText(count: Int): String = "🎬  $count reels today"
@@ -229,5 +245,27 @@ class ReelAccessibilityService : AccessibilityService() {
             }
         }
         return null
+    }
+
+    /** Debug aid: the trailing segment of the first few non-null view ids. */
+    private fun collectViewIdFragments(
+        root: AccessibilityNodeInfo,
+        limit: Int,
+    ): List<String> {
+        val results = LinkedHashSet<String>()
+        val queue = ArrayDeque<AccessibilityNodeInfo>()
+        queue.add(root)
+        var visited = 0
+        while (queue.isNotEmpty() && visited < 3000 && results.size < limit) {
+            val node = queue.removeFirst()
+            visited++
+            node.viewIdResourceName?.substringAfterLast('/')?.let {
+                if (it.isNotBlank()) results.add(it)
+            }
+            for (i in 0 until node.childCount) {
+                node.getChild(i)?.let { queue.add(it) }
+            }
+        }
+        return results.toList()
     }
 }
