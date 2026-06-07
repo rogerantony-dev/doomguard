@@ -40,10 +40,15 @@ class ReelAccessibilityService : AccessibilityService() {
     private var pill: TextView? = null
     private var overlayShown = false
 
-    // De-dupe state: a single reel fires many content-change events, so we only
-    // count when the visible reel's signature changes (and debounce rapid swipes).
+    // De-dupe state. Primary signal is the reels pager's scroll position, which
+    // changes the instant you swipe (no waiting for labels to load). The author
+    // "signature" is a fallback for devices/versions that don't report indices.
+    private var lastPosition = -1
     private var lastSignature: String? = null
     private var lastIncrementAt = 0L
+    // Latches once we successfully read a scroll position, so the slower
+    // signature fallback stops firing and can't double-count.
+    private var positionModeActive = false
 
     private val prefs by lazy {
         getSharedPreferences("doomguard_reels", Context.MODE_PRIVATE)
@@ -54,30 +59,41 @@ class ReelAccessibilityService : AccessibilityService() {
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        val pkg = event?.packageName?.toString()
+        event ?: return
+        val pkg = event.packageName?.toString()
         if (pkg != instagramPackage) {
-            // Left Instagram entirely — tear the pill down.
+            // Left Instagram entirely — tear the pill down and reset position.
             hideOverlay()
+            lastPosition = -1
             lastSignature = null
             return
         }
 
         val root = rootInActiveWindow ?: return
         val inReels = isReels(root)
-        val signature = reelSignature(root)
 
-        if (inReels && signature != null && signature != lastSignature) {
-            val now = System.currentTimeMillis()
-            if (now - lastIncrementAt > 350L) {
-                lastSignature = signature
-                lastIncrementAt = now
-                increment()
+        // Primary trigger: the pager scroll index, available right on the swipe.
+        val position = scrollPosition(event)
+        if (inReels && position != null) {
+            positionModeActive = true
+            if (position != lastPosition) {
+                lastPosition = position
+                maybeIncrement()
             }
+        }
+
+        // Fallback trigger: author signature, only if indices never arrive.
+        // Computed lazily — once position-mode is active we skip the tree-walk.
+        val signature =
+            if (debug || (inReels && !positionModeActive)) reelSignature(root) else null
+        if (inReels && !positionModeActive && signature != null && signature != lastSignature) {
+            lastSignature = signature
+            maybeIncrement()
         }
 
         if (debug) {
             // Always visible on Instagram so we can read what the detector sees.
-            render(debugText(root, inReels, signature))
+            render(debugText(root, inReels, position, signature))
         } else if (inReels) {
             render(pillText(currentCount()))
         } else {
@@ -85,14 +101,34 @@ class ReelAccessibilityService : AccessibilityService() {
         }
     }
 
+    /** Increment at most once per ~300ms so a single fling counts once. */
+    private fun maybeIncrement() {
+        val now = System.currentTimeMillis()
+        if (now - lastIncrementAt > 300L) {
+            lastIncrementAt = now
+            increment()
+        }
+    }
+
+    /** Adapter position of the reel currently snapped into view, if reported. */
+    private fun scrollPosition(event: AccessibilityEvent): Int? {
+        if (event.eventType != AccessibilityEvent.TYPE_VIEW_SCROLLED) return null
+        if (event.fromIndex >= 0) return event.fromIndex
+        if (event.toIndex >= 0) return event.toIndex
+        return null
+    }
+
     private fun debugText(
         root: AccessibilityNodeInfo,
         inReels: Boolean,
+        position: Int?,
         signature: String?,
     ): String {
         val ids = collectViewIdFragments(root, 6).joinToString(", ")
         return buildString {
             append("reels=").append(inReels).append("  n=").append(currentCount()).append('\n')
+            append("pos=").append(position?.toString() ?: "—")
+            append("  posMode=").append(positionModeActive).append('\n')
             append("sig=").append(signature ?: "—").append('\n')
             append("ids=").append(if (ids.isBlank()) "—" else ids)
         }
