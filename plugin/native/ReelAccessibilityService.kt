@@ -12,6 +12,8 @@ import android.graphics.Shader
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.provider.Settings
 import android.util.TypedValue
 import android.view.Gravity
@@ -64,6 +66,11 @@ class ReelAccessibilityService : AccessibilityService() {
         getSharedPreferences("doomguard_reels", Context.MODE_PRIVATE)
     }
 
+    // Hide hysteresis: a single mis-detected event shouldn't blink the pill out.
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private val hideRunnable = Runnable { hideOverlay() }
+    private val hideDelayMs = 900L
+
     override fun onServiceConnected() {
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
     }
@@ -72,7 +79,8 @@ class ReelAccessibilityService : AccessibilityService() {
         event ?: return
         val pkg = event.packageName?.toString()
         if (pkg != instagramPackage) {
-            // Left Instagram entirely — tear the pill down and reset position.
+            // Left Instagram entirely — tear the pill down immediately and reset.
+            mainHandler.removeCallbacks(hideRunnable)
             hideOverlay()
             lastPosition = -1
             lastSignature = null
@@ -103,11 +111,21 @@ class ReelAccessibilityService : AccessibilityService() {
 
         if (debug) {
             // Always visible on Instagram so we can read what the detector sees.
+            mainHandler.removeCallbacks(hideRunnable)
             render(currentCount(), debugText(root, inReels, position, signature))
-        } else if (inReels) {
+            return
+        }
+
+        if (inReels) {
+            // On a reel: keep the pill up and cancel any pending hide so a
+            // single mis-detected frame can't blink it out.
+            mainHandler.removeCallbacks(hideRunnable)
             render(currentCount())
-        } else {
-            hideOverlay()
+        } else if (overlayShown) {
+            // Possibly left reels — wait out a grace period before hiding, in
+            // case this was just a transient detection gap during playback.
+            mainHandler.removeCallbacks(hideRunnable)
+            mainHandler.postDelayed(hideRunnable, hideDelayMs)
         }
     }
 
@@ -147,6 +165,7 @@ class ReelAccessibilityService : AccessibilityService() {
     override fun onInterrupt() {}
 
     override fun onUnbind(intent: android.content.Intent?): Boolean {
+        mainHandler.removeCallbacks(hideRunnable)
         hideOverlay()
         return super.onUnbind(intent)
     }
