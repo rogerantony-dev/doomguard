@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "main": "index.ts",
   "dependencies": {
+    "@expo/vector-icons": "^15.0.3",
     "expo": "^54.0.0",
     "expo-dev-client": "~6.0.21",
     "expo-intent-launcher": "~13.0.8",
@@ -12,6 +13,7 @@
     "react-native": "0.81.5",
     "react-native-reanimated": "~4.1.1",
     "react-native-safe-area-context": "~5.6.2",
+    "react-native-svg": "15.12.1",
     "tailwindcss": "^3.4.19"
   },
   "devDependencies": {

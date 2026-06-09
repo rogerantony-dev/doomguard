@@ -1,5 +1,7 @@
 import { requireNativeModule } from "expo";
 
+export type DoomguardMode = "guilt" | "block";
+
 export type DoomguardStatus = {
   /** "Draw over other apps" permission granted. */
   overlay: boolean;
@@ -9,10 +11,13 @@ export type DoomguardStatus = {
   accessibilityRunning: boolean;
   /** Reels counted so far today. */
   todayCount: number;
+  /** Current behavior: "guilt" counts reels, "block" bounces you out. */
+  mode: DoomguardMode;
 };
 
 type NativeModule = {
   getStatus(): DoomguardStatus;
+  setMode(mode: DoomguardMode): void;
 };
 
 // Lazily resolved so JS never crashes if the native module isn't present
@@ -30,5 +35,14 @@ export function getStatus(): DoomguardStatus | null {
     return nativeModule.getStatus();
   } catch {
     return null;
+  }
+}
+
+export function setMode(mode: DoomguardMode): void {
+  if (!nativeModule) return;
+  try {
+    nativeModule.setMode(mode);
+  } catch {
+    // no-op if the native module isn't available
   }
 }

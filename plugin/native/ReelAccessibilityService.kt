@@ -58,6 +58,8 @@ class ReelAccessibilityService : AccessibilityService() {
     private var lastPosition = -1
     private var lastSignature: String? = null
     private var lastIncrementAt = 0L
+    // Block mode: throttle the auto-back so one reel isn't backed out repeatedly.
+    private var lastBackAt = 0L
     // Latches once we successfully read a scroll position, so the slower
     // signature fallback stops firing and can't double-count.
     private var positionModeActive = false
@@ -91,9 +93,23 @@ class ReelAccessibilityService : AccessibilityService() {
 
         val root = rootInActiveWindow ?: return
         val inReels = isReels(root)
-
-        // Primary trigger: the pager scroll index, available right on the swipe.
         val position = scrollPosition(event)
+
+        if (debug) {
+            // Always visible on Instagram so we can read what the detector sees.
+            mainHandler.removeCallbacks(hideRunnable)
+            render(currentCount(), debugText(root, inReels, position, reelSignature(root)))
+            return
+        }
+
+        // Block mode: kick the user out of reels instead of counting them.
+        if (currentMode() == "block") {
+            handleBlockMode(inReels)
+            return
+        }
+
+        // Guilt mode: count and show the eye.
+        // Primary trigger: the pager scroll index, available right on the swipe.
         if (inReels && position != null) {
             positionModeActive = true
             if (position != lastPosition) {
@@ -105,17 +121,10 @@ class ReelAccessibilityService : AccessibilityService() {
         // Fallback trigger: author signature, only if indices never arrive.
         // Computed lazily — once position-mode is active we skip the tree-walk.
         val signature =
-            if (debug || (inReels && !positionModeActive)) reelSignature(root) else null
+            if (inReels && !positionModeActive) reelSignature(root) else null
         if (inReels && !positionModeActive && signature != null && signature != lastSignature) {
             lastSignature = signature
             maybeIncrement()
-        }
-
-        if (debug) {
-            // Always visible on Instagram so we can read what the detector sees.
-            mainHandler.removeCallbacks(hideRunnable)
-            render(currentCount(), debugText(root, inReels, position, signature))
-            return
         }
 
         if (inReels) {
@@ -126,6 +135,24 @@ class ReelAccessibilityService : AccessibilityService() {
         } else if (overlayShown) {
             // Possibly left reels — wait out a grace period before hiding, in
             // case this was just a transient detection gap during playback.
+            mainHandler.removeCallbacks(hideRunnable)
+            mainHandler.postDelayed(hideRunnable, hideDelayMs)
+        }
+    }
+
+    private fun currentMode(): String = prefs.getString("mode", "guilt") ?: "guilt"
+
+    /** Block mode: back out of reels on sight, with a throttle + a brief pill. */
+    private fun handleBlockMode(inReels: Boolean) {
+        if (inReels) {
+            mainHandler.removeCallbacks(hideRunnable)
+            val now = System.currentTimeMillis()
+            if (now - lastBackAt > 1200L) {
+                lastBackAt = now
+                performGlobalAction(GLOBAL_ACTION_BACK)
+            }
+            renderBlocked()
+        } else if (overlayShown) {
             mainHandler.removeCallbacks(hideRunnable)
             mainHandler.postDelayed(hideRunnable, hideDelayMs)
         }
@@ -235,6 +262,15 @@ class ReelAccessibilityService : AccessibilityService() {
         if (!overlayShown) buildPill()
         eyeView?.setIntensity(rednessFor(count))
         pillLabel?.text = debugText ?: pillText(count)
+    }
+
+    /** Block-mode pill shown the instant we bounce the user out of reels. */
+    private fun renderBlocked() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+        if (!Settings.canDrawOverlays(this)) return
+        if (!overlayShown) buildPill()
+        eyeView?.setIntensity(1f)
+        pillLabel?.text = "🛡  Reels blocked"
     }
 
     private fun buildPill() {

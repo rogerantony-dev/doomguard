@@ -25,7 +25,14 @@ class DoomguardnativeModule : Module() {
         "accessibilityEnabled" to isAccessibilityEnabled(context),
         "accessibilityRunning" to isAccessibilityRunning(context),
         "todayCount" to todayCount(context),
+        "mode" to currentMode(context),
       )
+    }
+
+    Function("setMode") { mode: String ->
+      val context = appContext.reactContext?.applicationContext ?: return@Function
+      val normalized = if (mode == "block") "block" else "guilt"
+      prefs(context).edit().putString("mode", normalized).apply()
     }
   }
 
@@ -34,7 +41,14 @@ class DoomguardnativeModule : Module() {
     "accessibilityEnabled" to false,
     "accessibilityRunning" to false,
     "todayCount" to 0,
+    "mode" to "guilt",
   )
+
+  private fun prefs(context: Context) =
+    context.getSharedPreferences("doomguard_reels", Context.MODE_PRIVATE)
+
+  private fun currentMode(context: Context): String =
+    prefs(context).getString("mode", "guilt") ?: "guilt"
 
   private fun serviceId(context: Context): String {
     val pkg = context.packageName
