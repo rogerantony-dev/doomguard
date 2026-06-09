@@ -73,6 +73,8 @@ class ReelAccessibilityService : AccessibilityService() {
 
     override fun onServiceConnected() {
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
+        // Heartbeat so the app can confirm the service is actually running.
+        prefs.edit().putLong("lastConnectedAt", System.currentTimeMillis()).apply()
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
