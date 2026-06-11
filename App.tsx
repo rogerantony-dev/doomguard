@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   AppState,
   Modal,
@@ -69,15 +69,40 @@ function useMountEffect(effect: () => void | (() => void)) {
 export default function App() {
   const [status, setStatus] = useState<DoomguardStatus | null>(() => getStatus());
   const [confirmGuilt, setConfirmGuilt] = useState(false);
+  const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const refresh = useCallback(() => setStatus(getStatus()), []);
 
+  // Poll status for a few seconds after coming to the foreground. The
+  // accessibility service writes its "connected" heartbeat a beat after you
+  // flip the toggle, so a single read on resume can miss it and the setup
+  // would look incomplete until the next app switch. We stop early once both
+  // permissions are live (so the tick lands and onboarding hands off to home).
+  const syncStatus = useCallback(() => {
+    if (pollRef.current) clearTimeout(pollRef.current);
+    let attempts = 0;
+    const tick = () => {
+      const next = getStatus();
+      setStatus(next);
+      const ready = next?.overlay === true && next?.accessibilityRunning === true;
+      if (ready || (attempts += 1) >= 8) {
+        pollRef.current = null;
+        return;
+      }
+      pollRef.current = setTimeout(tick, 500);
+    };
+    tick();
+  }, []);
+
   useMountEffect(() => {
-    refresh();
+    syncStatus();
     const subscription = AppState.addEventListener("change", (state) => {
-      if (state === "active") refresh();
+      if (state === "active") syncStatus();
     });
-    return () => subscription.remove();
+    return () => {
+      subscription.remove();
+      if (pollRef.current) clearTimeout(pollRef.current);
+    };
   });
 
   const overlayDone = status?.overlay === true;
