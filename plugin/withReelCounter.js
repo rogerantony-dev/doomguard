@@ -87,7 +87,9 @@ function withReelCounterManifest(config) {
       application.receiver.push({
         $: {
           "android:name": ".DoomguardWidgetProvider",
-          "android:exported": "false",
+          // Exported so every launcher's widget host (incl. Samsung One UI)
+          // reliably lists + binds the widget.
+          "android:exported": "true",
           "android:label": "Doomguard",
         },
         "intent-filter": [
