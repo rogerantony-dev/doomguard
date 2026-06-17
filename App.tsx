@@ -30,7 +30,6 @@ import {
 } from "./components/console";
 import {
   getStatus,
-  getStatusDebug,
   setMode,
   type DoomguardMode,
   type DoomguardStatus,
@@ -204,9 +203,6 @@ export default function App() {
                 your count lives only on this device.
               </Text>
             </View>
-
-            {/* TEMP diagnostics — remove once status is trusted. */}
-            <Diagnostics />
           </View>
         </ScrollView>
       </SafeAreaView>
@@ -559,14 +555,3 @@ function SetupStep({
   );
 }
 
-function Diagnostics() {
-  return (
-    <View className="gap-2 rounded-[14px] border border-amber/30 p-4"
-      style={{ backgroundColor: "rgba(245,165,36,0.06)" }}>
-      <Label color={C.amber}>{"// DIAGNOSTICS"}</Label>
-      <Mono className="text-[11px] leading-4 text-amber/90">
-        {JSON.stringify(getStatusDebug(), null, 2)}
-      </Mono>
-    </View>
-  );
-}
