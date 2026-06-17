@@ -25,6 +25,8 @@ class DoomguardnativeModule : Module() {
         "accessibilityEnabled" to isAccessibilityEnabled(context),
         "accessibilityRunning" to isAccessibilityRunning(context),
         "todayCount" to todayCount(context),
+        "todayShorts" to todayShorts(context),
+        "todaySeconds" to todaySeconds(context),
         "mode" to currentMode(context),
       )
     }
@@ -41,6 +43,8 @@ class DoomguardnativeModule : Module() {
     "accessibilityEnabled" to false,
     "accessibilityRunning" to false,
     "todayCount" to 0,
+    "todayShorts" to 0,
+    "todaySeconds" to 0,
     "mode" to "guilt",
   )
 
@@ -79,5 +83,16 @@ class DoomguardnativeModule : Module() {
   private fun todayCount(context: Context): Int {
     val prefs = context.getSharedPreferences("doomguard_reels", Context.MODE_PRIVATE)
     return prefs.getInt("count", 0)
+  }
+
+  private fun todayShorts(context: Context): Int {
+    val prefs = context.getSharedPreferences("doomguard_reels", Context.MODE_PRIVATE)
+    return prefs.getInt("shortsCount", 0)
+  }
+
+  /** Seconds spent on short-form players (reels + shorts) today; drives the timer. */
+  private fun todaySeconds(context: Context): Int {
+    val prefs = context.getSharedPreferences("doomguard_reels", Context.MODE_PRIVATE)
+    return prefs.getInt("seconds", 0)
   }
 }

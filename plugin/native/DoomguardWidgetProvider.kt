@@ -1,0 +1,87 @@
+package com.rogerantony.doomguard
+
+import android.app.PendingIntent
+import android.appwidget.AppWidgetManager
+import android.appwidget.AppWidgetProvider
+import android.content.ComponentName
+import android.content.Context
+import android.widget.RemoteViews
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+
+/**
+ * Home-screen widget that mirrors the live "today" tally the accessibility
+ * service keeps: time wasted on short-form video plus the per-platform reel and
+ * short counts. It reads the very same SharedPreferences the service writes
+ * ([PREFS]); there is no separate state, so the widget can never disagree with
+ * the in-app dashboard or the floating pill.
+ *
+ * The Android widget framework only refreshes on its own at most every 30 min,
+ * which is far too coarse for a live counter, so the service pushes updates to
+ * us via [updateAll] whenever the numbers change. [onUpdate] still handles the
+ * cases the system drives directly: the widget being added, the launcher
+ * restarting, or a device reboot.
+ */
+class DoomguardWidgetProvider : AppWidgetProvider() {
+
+    override fun onUpdate(
+        context: Context,
+        manager: AppWidgetManager,
+        ids: IntArray,
+    ) {
+        for (id in ids) renderWidget(context, manager, id)
+    }
+
+    companion object {
+        private const val PREFS = "doomguard_reels"
+
+        /**
+         * Push the current counts to every placed widget. Safe to call from the
+         * accessibility service on any thread; a no-op if no widget is placed.
+         */
+        fun updateAll(context: Context) {
+            val manager = AppWidgetManager.getInstance(context) ?: return
+            val component = ComponentName(context, DoomguardWidgetProvider::class.java)
+            val ids = manager.getAppWidgetIds(component) ?: return
+            for (id in ids) renderWidget(context, manager, id)
+        }
+
+        private fun renderWidget(context: Context, manager: AppWidgetManager, id: Int) {
+            val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+
+            // The service only rolls the counters over to a new day when an event
+            // fires, so stored values can belong to an earlier date. Show zeros
+            // until the service actually records something today.
+            val today = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
+            val fresh = prefs.getString("date", null) == today
+            val reels = if (fresh) prefs.getInt("count", 0) else 0
+            val shorts = if (fresh) prefs.getInt("shortsCount", 0) else 0
+            val seconds = if (fresh) prefs.getInt("seconds", 0) else 0
+
+            val views = RemoteViews(context.packageName, R.layout.doomguard_widget)
+            views.setTextViewText(R.id.widget_time, formatTime(seconds))
+            views.setTextViewText(R.id.widget_reels, "🎬 $reels${plural(reels, " reel", " reels")}")
+            views.setTextViewText(R.id.widget_shorts, "▶ $shorts${plural(shorts, " short", " shorts")}")
+
+            // Tapping the widget opens the app.
+            context.packageManager.getLaunchIntentForPackage(context.packageName)?.let { launch ->
+                val flags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                val pending = PendingIntent.getActivity(context, 0, launch, flags)
+                views.setOnClickPendingIntent(R.id.doomguard_widget_root, pending)
+            }
+
+            manager.updateAppWidget(id, views)
+        }
+
+        private fun plural(n: Int, one: String, many: String): String =
+            if (n == 1) one else many
+
+        /** Seconds -> "23m", or "1h 4m" once it crosses an hour. */
+        private fun formatTime(seconds: Int): String {
+            val minutes = seconds / 60
+            if (minutes < 60) return "${minutes}m"
+            return "${minutes / 60}h ${minutes % 60}m"
+        }
+    }
+}

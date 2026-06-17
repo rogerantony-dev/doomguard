@@ -13,9 +13,24 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as IntentLauncher from "expo-intent-launcher";
 
-import { EyeGraphic } from "./components/EyeGraphic";
+import { CatGallery } from "./components/CatGallery";
+import { StopwatchGraphic } from "./components/StopwatchGraphic";
+import {
+  C,
+  CatsButton,
+  Glow,
+  HazardStrip,
+  Instrument,
+  Label,
+  Meter,
+  Mono,
+  Scanlines,
+  SectionRule,
+  StatusStrip,
+} from "./components/console";
 import {
   getStatus,
+  getStatusDebug,
   setMode,
   type DoomguardMode,
   type DoomguardStatus,
@@ -41,23 +56,28 @@ function openOverlaySettings() {
   });
 }
 
-/** Matches the native overlay curve: calm under 50, fully red by ~200. */
-function rednessFor(count: number): number {
-  return Math.min(1, Math.max(0, (count - 50) / 150));
+/** Matches the native pill curve: calm under ~10 min, fully red by ~50. */
+function rednessForMinutes(minutes: number): number {
+  return Math.min(1, Math.max(0, (minutes - 10) / 40));
 }
 
-function vibe(count: number): { title: string; sub: string } {
-  if (count === 0)
-    return { title: "Eyes clear.", sub: "Not a single reel today. Look at you." };
-  if (count < 15)
-    return { title: "Fresh eyes.", sub: "A few reels in — willpower intact." };
-  if (count < 40)
-    return { title: "Getting comfy…", sub: "The scroll is starting to pull." };
-  if (count < 80)
-    return { title: "Eyes glazing over.", sub: "That's a lot of reels. Stretch?" };
-  if (count < 150)
-    return { title: "Bloodshot.", sub: "Seriously — go touch some grass." };
-  return { title: "Send help.", sub: "Your eyes are screaming. Outside. Now." };
+function vibe(minutes: number): { title: string; sub: string } {
+  if (minutes < 1)
+    return { title: "Clock's clean.", sub: "No time wasted yet today. Look at you." };
+  if (minutes < 5)
+    return { title: "Just a peek.", sub: "A couple minutes in. Willpower intact." };
+  if (minutes < 15)
+    return { title: "Clock's ticking.", sub: "The scroll is starting to pull." };
+  if (minutes < 30)
+    return { title: "Time's slipping.", sub: "That's a real chunk of today. Stretch?" };
+  if (minutes < 60)
+    return { title: "Deep in it.", sub: "Most of an hour, gone. Go touch grass." };
+  if (minutes < 120)
+    return { title: "Where'd the day go?", sub: "Over an hour scrolling. Outside. Now." };
+  return {
+    title: "Bruh.",
+    sub: "2+ hours scrolling. What are you even doing with your life?",
+  };
 }
 
 /** Runs once on mount; the returned cleanup runs on unmount. */
@@ -109,12 +129,17 @@ export default function App() {
   const accessibilityDone = status?.accessibilityRunning === true;
   const allReady = overlayDone && accessibilityDone;
   const mode: DoomguardMode = status?.mode ?? "guilt";
+  const seconds = status?.todaySeconds ?? 0;
   const count = status?.todayCount ?? 0;
+  const shorts = status?.todayShorts ?? 0;
+
+  const blocking = allReady && mode === "block";
+  const accent = blocking ? C.toxic : C.ember;
 
   const changeMode = useCallback(
     (next: DoomguardMode) => {
       if (next === mode) return;
-      // Leaving Block mode is the moment of weakness — make them confirm.
+      // Leaving Block mode is the moment of weakness, so make them confirm.
       if (mode === "block" && next === "guilt") {
         setConfirmGuilt(true);
         return;
@@ -132,91 +157,190 @@ export default function App() {
   }, [refresh]);
 
   return (
-    <SafeAreaView className="flex-1 bg-zinc-950">
-      <StatusBar style="light" />
-      <ScrollView className="flex-1" contentContainerStyle={{ flexGrow: 1 }}>
-        <View className="grow gap-8 px-6 py-8">
-          <View className="gap-2">
-            <Text className="text-4xl font-bold text-white">Doomguard</Text>
-            <Text className="text-base text-zinc-400">
-              {allReady
-                ? "Your daily reel habit, staring back at you."
-                : "Counts the Reels you watch on Instagram each day."}
-            </Text>
-          </View>
+    <View className="flex-1 bg-ink">
+      <Glow color={accent} />
+      <Scanlines />
+      <SafeAreaView className="flex-1">
+        <StatusBar style="light" />
+        <ScrollView className="flex-1" contentContainerStyle={{ flexGrow: 1 }}>
+          <View className="grow gap-7 px-5 py-5">
+            <Header
+              tone={blocking ? "toxic" : "ember"}
+              tagline={
+                !allReady
+                  ? "Times the reels and shorts you watch each day."
+                  : blocking
+                    ? "Reels can't reach you."
+                    : "Your daily scroll habit, on the clock."
+              }
+            />
 
-          {Platform.OS !== "android" ? (
-            <View className="rounded-2xl bg-zinc-900 p-5">
-              <Text className="text-base text-zinc-300">
-                The Reel counter is Android-only — it relies on Android's overlay
-                and accessibility features. Install the Android build to use it.
+            {Platform.OS !== "android" ? (
+              <Instrument className="p-5">
+                <Text className="text-base leading-6 text-ash">
+                  The Reel counter is Android only. It relies on Android's overlay
+                  and accessibility features. Install the Android build to use it.
+                </Text>
+              </Instrument>
+            ) : allReady ? (
+              <Dashboard
+                mode={mode}
+                seconds={seconds}
+                count={count}
+                shorts={shorts}
+                onChangeMode={changeMode}
+              />
+            ) : (
+              <Onboarding
+                overlayDone={overlayDone}
+                accessibilityDone={accessibilityDone}
+              />
+            )}
+
+            <View className="mt-auto border-t border-bone/10 pt-4">
+              <Text className="text-[12.5px] leading-5 text-dim">
+                Doomguard only reads Instagram &amp; YouTube's screen,{" "}
+                <Text className="font-semibold text-ash">nothing else</Text>, and
+                your count lives only on this device.
               </Text>
             </View>
-          ) : allReady ? (
-            <Dashboard mode={mode} count={count} onChangeMode={changeMode} />
-          ) : (
-            <Onboarding
-              overlayDone={overlayDone}
-              accessibilityDone={accessibilityDone}
-            />
-          )}
 
-          <View className="mt-auto rounded-2xl bg-zinc-900 p-5">
-            <Text className="text-sm leading-5 text-zinc-400">
-              Doomguard only reads Instagram's screen, nothing else, and your
-              count lives only on this device.
-            </Text>
+            {/* TEMP diagnostics — remove once status is trusted. */}
+            <Diagnostics />
           </View>
-        </View>
-      </ScrollView>
+        </ScrollView>
+      </SafeAreaView>
 
       <PushThroughModal
         visible={confirmGuilt}
         onKeepBlocking={() => setConfirmGuilt(false)}
         onGiveIn={giveIn}
       />
-    </SafeAreaView>
+    </View>
+  );
+}
+
+function Header({
+  tone,
+  tagline,
+}: {
+  tone: "ember" | "toxic";
+  tagline: string;
+}) {
+  return (
+    <View className="gap-4">
+      <StatusStrip label={tone === "toxic" ? "Block · Armed" : "Monitoring"} tone={tone} />
+      <View>
+        <Text
+          className="text-[40px] font-extrabold text-bone"
+          style={{ letterSpacing: -1, lineHeight: 42 }}
+        >
+          DOOM<Text className={tone === "toxic" ? "text-toxic" : "text-ember"}>GUARD</Text>
+        </Text>
+        <Text className="mt-1.5 text-[14px] text-ash">{tagline}</Text>
+      </View>
+    </View>
   );
 }
 
 function Dashboard({
   mode,
+  seconds,
   count,
+  shorts,
   onChangeMode,
 }: {
   mode: DoomguardMode;
+  seconds: number;
   count: number;
+  shorts: number;
   onChangeMode: (mode: DoomguardMode) => void;
 }) {
-  const v = vibe(count);
+  const [catsOpen, setCatsOpen] = useState(false);
+  const minutes = Math.floor(seconds / 60);
+  const v = vibe(minutes);
   return (
-    <View className="gap-7">
+    <View className="gap-6">
       {mode === "guilt" ? (
-        <View className="items-center gap-3 rounded-3xl bg-zinc-900 px-6 py-8">
-          <EyeGraphic intensity={rednessFor(count)} size={240} />
-          <View className="flex-row items-end gap-2">
-            <Text className="text-6xl font-bold text-white">{count}</Text>
-            <Text className="mb-2 text-lg text-zinc-400">
-              {count === 1 ? "reel" : "reels"} today
+        <Instrument className="items-center gap-4 px-5 py-6">
+          <Label style={{ alignSelf: "flex-start" }}>{"// TIME WASTED · TODAY"}</Label>
+          <StopwatchGraphic
+            intensity={rednessForMinutes(minutes)}
+            minutes={minutes}
+            size={170}
+          />
+          <View className="flex-row items-baseline gap-2.5">
+            <Mono className="text-[72px] font-bold text-bone" style={{ lineHeight: 72 }}>
+              {minutes}
+            </Mono>
+            <Text className="mb-2 text-[15px] text-ash">
+              {minutes === 1 ? "min" : "mins"}{"\n"}doomscrolling
             </Text>
           </View>
-          <Text className="text-xl font-semibold text-white">{v.title}</Text>
-          <Text className="text-center text-sm text-zinc-400">{v.sub}</Text>
-        </View>
-      ) : (
-        <View className="items-center gap-4 rounded-3xl bg-zinc-900 px-6 py-10">
-          <View className="h-28 w-28 items-center justify-center rounded-full bg-emerald-500/15">
-            <Ionicons name="shield-checkmark" size={68} color="#34d399" />
+          <Meter value={rednessForMinutes(minutes)} />
+          <View className="mt-1 flex-row gap-2.5">
+            <CountChip color="#E1306C" value={count} unit={count === 1 ? "reel" : "reels"} />
+            <CountChip color="#FF0000" value={shorts} unit={shorts === 1 ? "short" : "shorts"} />
           </View>
-          <Text className="text-xl font-semibold text-white">Block mode is on</Text>
-          <Text className="text-center text-sm text-zinc-400">
-            Reels get bounced the moment they appear. Nothing to count — you're
-            not watching any.
+          <View className="mt-1 items-center gap-1">
+            <Text className="text-[21px] font-bold text-bone">{v.title}</Text>
+            <Text className="text-center text-[13.5px] text-ash">{v.sub}</Text>
+          </View>
+        </Instrument>
+      ) : (
+        <Instrument className="items-center gap-4 px-5 py-7">
+          <Label color={C.toxic} style={{ alignSelf: "flex-start" }}>
+            {"// PERIMETER · ACTIVE"}
+          </Label>
+          <View
+            className="h-24 w-24 items-center justify-center rounded-full border border-toxic/30"
+            style={{ backgroundColor: "rgba(61,220,132,0.10)" }}
+          >
+            <Ionicons name="shield-checkmark" size={54} color={C.toxic} />
+          </View>
+          <Text className="text-[22px] font-bold text-bone">Block mode engaged</Text>
+          <View className="flex-row items-baseline gap-2.5">
+            <Mono className="text-[64px] font-bold text-toxic" style={{ lineHeight: 64 }}>
+              {minutes}
+            </Mono>
+            <Text className="mb-2 text-[15px] text-ash">
+              {minutes === 1 ? "min" : "mins"}{"\n"}logged today
+            </Text>
+          </View>
+          <View className="mt-1 flex-row gap-2.5">
+            <CountChip color="#E1306C" value={count} unit={count === 1 ? "reel" : "reels"} />
+            <CountChip color="#FF0000" value={shorts} unit={shorts === 1 ? "short" : "shorts"} />
+          </View>
+          <Text className="max-w-[270px] text-center text-[13.5px] text-ash">
+            Today's tally so far. New reels and shorts get bounced the instant
+            they appear — so this stops climbing.
           </Text>
-        </View>
+        </Instrument>
       )}
 
+      <CatsButton onPress={() => setCatsOpen(true)} />
+
       <ModeSwitch mode={mode} onChangeMode={onChangeMode} />
+
+      <CatGallery visible={catsOpen} onClose={() => setCatsOpen(false)} />
+    </View>
+  );
+}
+
+function CountChip({
+  color,
+  value,
+  unit,
+}: {
+  color: string;
+  value: number;
+  unit: string;
+}) {
+  return (
+    <View className="flex-row items-center gap-2.5 rounded-full border border-bone/10 bg-[#16161C] px-4 py-2">
+      <View style={{ width: 9, height: 9, borderRadius: 5, backgroundColor: color }} />
+      <Mono className="text-[15px] font-bold text-bone">{value}</Mono>
+      <Text className="text-[12px] text-ash">{unit}</Text>
     </View>
   );
 }
@@ -230,13 +354,11 @@ function ModeSwitch({
 }) {
   return (
     <View className="gap-3">
-      <Text className="text-sm font-medium uppercase tracking-wide text-zinc-500">
-        Mode
-      </Text>
-      <View className="flex-row rounded-2xl bg-zinc-900 p-1.5">
+      <SectionRule>MODE</SectionRule>
+      <View className="flex-row gap-1.5 rounded-2xl border border-bone/10 bg-ink2 p-1.5">
         <ModeOption
           active={mode === "guilt"}
-          icon="eye"
+          icon="stopwatch"
           label="Guilt"
           onPress={() => onChangeMode("guilt")}
         />
@@ -248,10 +370,10 @@ function ModeSwitch({
           onPress={() => onChangeMode("block")}
         />
       </View>
-      <Text className="px-1 text-sm text-zinc-400">
+      <Text className="px-1 text-[13px] text-ash">
         {mode === "guilt"
-          ? "Guilt — watch all you want, the eye keeps score."
-          : "Block (pro) — Doomguard backs you out of every reel."}
+          ? "Guilt. Watch all you want — the clock keeps time."
+          : "Block (pro). Doomguard backs you out of every reel and short."}
       </Text>
     </View>
   );
@@ -270,9 +392,9 @@ function ModeOption({
   accent?: boolean;
   onPress: () => void;
 }) {
-  const activeBg = accent ? "bg-emerald-500" : "bg-white";
-  const activeText = accent ? "text-white" : "text-zinc-950";
-  const iconColor = active ? (accent ? "#ffffff" : "#09090b") : "#a1a1aa";
+  const activeBg = accent ? "bg-toxic" : "bg-bone";
+  const activeText = accent ? "text-toxicdeep" : "text-ink";
+  const iconColor = active ? (accent ? C.toxicdeep : C.ink) : C.ash;
   return (
     <Pressable
       onPress={onPress}
@@ -282,9 +404,7 @@ function ModeOption({
     >
       <Ionicons name={icon} size={18} color={iconColor} />
       <Text
-        className={`text-base font-semibold ${
-          active ? activeText : "text-zinc-400"
-        }`}
+        className={`text-[15px] font-bold ${active ? activeText : "text-ash"}`}
       >
         {label}
       </Text>
@@ -308,26 +428,30 @@ function PushThroughModal({
       animationType="fade"
       onRequestClose={onKeepBlocking}
     >
-      <View className="flex-1 items-center justify-center bg-black/70 px-8">
-        <View className="w-full gap-5 rounded-3xl bg-zinc-900 p-6">
-          <View className="h-14 w-14 items-center justify-center rounded-full bg-amber-500/15">
-            <Ionicons name="flame" size={30} color="#f59e0b" />
+      <View className="flex-1 items-center justify-center bg-black/75 px-7">
+        <Instrument className="w-full gap-5 p-6">
+          <View
+            className="h-14 w-14 items-center justify-center rounded-full"
+            style={{ backgroundColor: "rgba(245,165,36,0.15)" }}
+          >
+            <Ionicons name="flame" size={30} color={C.amber} />
           </View>
           <View className="gap-2">
-            <Text className="text-2xl font-bold text-white">
+            <Text className="text-[23px] font-bold text-bone">
               Going soft already?
             </Text>
-            <Text className="text-base leading-6 text-zinc-400">
-              You're in Block mode — the reels can't touch you. Switch back and
+            <Text className="text-[14.5px] leading-6 text-ash">
+              You're in Block mode and the reels can't touch you. Switch back and
               you're choosing to feed the addiction. Why not just push through?
             </Text>
           </View>
+          <HazardStrip />
           <View className="gap-3">
             <Pressable
               onPress={onKeepBlocking}
-              className="items-center rounded-xl bg-emerald-500 px-4 py-3.5 active:opacity-80"
+              className="items-center rounded-xl bg-toxic px-4 py-3.5 active:opacity-80"
             >
-              <Text className="text-base font-bold text-white">
+              <Text className="text-[15px] font-bold text-toxicdeep">
                 Keep blocking 🛡️
               </Text>
             </Pressable>
@@ -335,12 +459,12 @@ function PushThroughModal({
               onPress={onGiveIn}
               className="items-center rounded-xl px-4 py-2 active:opacity-60"
             >
-              <Text className="text-base font-medium text-zinc-500">
+              <Text className="text-[15px] font-medium text-dim">
                 I'll give in 😔
               </Text>
             </Pressable>
           </View>
-        </View>
+        </Instrument>
       </View>
     </Modal>
   );
@@ -353,11 +477,11 @@ function Onboarding({
   overlayDone: boolean;
   accessibilityDone: boolean;
 }) {
+  const armed = (overlayDone ? 1 : 0) + (accessibilityDone ? 1 : 0);
   return (
     <View className="gap-4">
-      <Text className="text-sm font-medium uppercase tracking-wide text-zinc-500">
-        One-time setup
-      </Text>
+      <HazardStrip />
+      <SectionRule>{`SETUP · ${armed} OF 2 ARMED`}</SectionRule>
 
       <SetupStep
         index={1}
@@ -397,42 +521,52 @@ function SetupStep({
 }) {
   return (
     <View
-      className={`gap-3 rounded-2xl border p-5 ${
-        done
-          ? "border-emerald-500/40 bg-emerald-950/30"
-          : "border-transparent bg-zinc-900"
+      className={`relative gap-3 overflow-hidden rounded-[20px] border p-5 ${
+        done ? "border-toxic/40" : "border-bone/10"
       }`}
+      style={{ backgroundColor: done ? "rgba(15,58,36,0.45)" : C.panel }}
     >
       <View className="flex-row items-center gap-3">
         <View
           className={`h-7 w-7 items-center justify-center rounded-full ${
-            done ? "bg-emerald-500" : "bg-white"
+            done ? "bg-toxic" : "bg-bone"
           }`}
         >
           {done ? (
-            <Ionicons name="checkmark" size={18} color="#ffffff" />
+            <Ionicons name="checkmark" size={18} color={C.toxicdeep} />
           ) : (
-            <Text className="text-sm font-bold text-zinc-950">{index}</Text>
+            <Mono className="text-sm font-bold text-ink">{index}</Mono>
           )}
         </View>
-        <Text className="flex-1 text-lg font-semibold text-white">{title}</Text>
+        <Text className="flex-1 text-[17px] font-bold text-bone">{title}</Text>
       </View>
-      <Text className="text-sm leading-5 text-zinc-400">{body}</Text>
+      <Text className="text-[13.5px] leading-5 text-ash">{body}</Text>
       {done ? (
-        <View className="flex-row items-center justify-center gap-2 rounded-xl bg-emerald-500/15 px-4 py-3">
-          <Ionicons name="checkmark-circle" size={18} color="#34d399" />
-          <Text className="text-base font-semibold text-emerald-400">
-            Enabled
-          </Text>
+        <View className="flex-row items-center justify-center gap-2 rounded-xl px-4 py-3"
+          style={{ backgroundColor: "rgba(61,220,132,0.14)" }}>
+          <Ionicons name="checkmark-circle" size={18} color={C.toxic} />
+          <Label color={C.toxic}>Enabled</Label>
         </View>
       ) : (
         <Pressable
           onPress={onPress}
-          className="items-center rounded-xl bg-white px-4 py-3 active:opacity-80"
+          className="items-center rounded-xl bg-bone px-4 py-3 active:opacity-80"
         >
-          <Text className="text-base font-semibold text-zinc-950">{action}</Text>
+          <Text className="text-[15px] font-bold text-ink">{action}</Text>
         </Pressable>
       )}
+    </View>
+  );
+}
+
+function Diagnostics() {
+  return (
+    <View className="gap-2 rounded-[14px] border border-amber/30 p-4"
+      style={{ backgroundColor: "rgba(245,165,36,0.06)" }}>
+      <Label color={C.amber}>{"// DIAGNOSTICS"}</Label>
+      <Mono className="text-[11px] leading-4 text-amber/90">
+        {JSON.stringify(getStatusDebug(), null, 2)}
+      </Mono>
     </View>
   );
 }

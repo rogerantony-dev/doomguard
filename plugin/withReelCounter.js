@@ -10,9 +10,11 @@ const ACCESSIBILITY_CONFIG_RES = "@xml/doomguard_accessibility_config";
 
 /**
  * Wires up the native Reel-counter:
- *  1. Declares SYSTEM_ALERT_WINDOW + the AccessibilityService in the manifest.
- *  2. Copies the Kotlin service and its accessibility config XML into the
- *     generated Android project during prebuild.
+ *  1. Declares SYSTEM_ALERT_WINDOW + the AccessibilityService in the manifest,
+ *     plus the home-screen widget receiver.
+ *  2. Copies the Kotlin sources, the accessibility config XML, and the widget
+ *     resources (layout/drawable/xml) into the generated Android project during
+ *     prebuild.
  *
  * Kept as a config plugin (rather than a committed android/ tree) so the project
  * stays prebuild- and EAS-friendly.
@@ -76,6 +78,40 @@ function withReelCounterManifest(config) {
       });
     }
 
+    // The home-screen widget receiver (reads the same counts the service writes).
+    application.receiver = application.receiver || [];
+    const widgetDeclared = application.receiver.some(
+      (r) => r.$["android:name"] === ".DoomguardWidgetProvider"
+    );
+    if (!widgetDeclared) {
+      application.receiver.push({
+        $: {
+          "android:name": ".DoomguardWidgetProvider",
+          "android:exported": "false",
+          "android:label": "Doomguard",
+        },
+        "intent-filter": [
+          {
+            action: [
+              {
+                $: {
+                  "android:name": "android.appwidget.action.APPWIDGET_UPDATE",
+                },
+              },
+            ],
+          },
+        ],
+        "meta-data": [
+          {
+            $: {
+              "android:name": "android.appwidget.provider",
+              "android:resource": "@xml/doomguard_widget_info",
+            },
+          },
+        ],
+      });
+    }
+
     return config;
   });
 }
@@ -94,8 +130,10 @@ function withReelCounterNativeFiles(config) {
       const projectRoot = config.modRequest.projectRoot;
       const platformRoot = config.modRequest.platformProjectRoot; // .../android
       const sourceDir = path.join(projectRoot, "plugin", "native");
+      const resRoot = path.join(platformRoot, "app", "src", "main", "res");
 
-      // Kotlin service -> app/src/main/java/<package path>/
+      // Every Kotlin source -> app/src/main/java/<package path>/, with its
+      // package line rewritten to the app's package so R + cross-class refs resolve.
       const javaDir = path.join(
         platformRoot,
         "app",
@@ -106,33 +144,35 @@ function withReelCounterNativeFiles(config) {
       );
       fs.mkdirSync(javaDir, { recursive: true });
 
-      let kotlin = fs.readFileSync(
-        path.join(sourceDir, "ReelAccessibilityService.kt"),
-        "utf8"
-      );
-      kotlin = kotlin.replace(
-        /^package .*$/m,
-        `package ${androidPackage}`
-      );
-      fs.writeFileSync(
-        path.join(javaDir, "ReelAccessibilityService.kt"),
-        kotlin
-      );
+      for (const file of fs.readdirSync(sourceDir)) {
+        if (!file.endsWith(".kt")) continue;
+        const kotlin = fs
+          .readFileSync(path.join(sourceDir, file), "utf8")
+          .replace(/^package .*$/m, `package ${androidPackage}`);
+        fs.writeFileSync(path.join(javaDir, file), kotlin);
+      }
 
       // Accessibility config -> app/src/main/res/xml/
-      const xmlDir = path.join(
-        platformRoot,
-        "app",
-        "src",
-        "main",
-        "res",
-        "xml"
-      );
+      const xmlDir = path.join(resRoot, "xml");
       fs.mkdirSync(xmlDir, { recursive: true });
       fs.copyFileSync(
         path.join(sourceDir, "doomguard_accessibility_config.xml"),
         path.join(xmlDir, "doomguard_accessibility_config.xml")
       );
+
+      // Widget resources (layout/drawable/xml) -> app/src/main/res/<type>/
+      const resSource = path.join(sourceDir, "res");
+      if (fs.existsSync(resSource)) {
+        for (const resType of fs.readdirSync(resSource)) {
+          const fromDir = path.join(resSource, resType);
+          if (!fs.statSync(fromDir).isDirectory()) continue;
+          const toDir = path.join(resRoot, resType);
+          fs.mkdirSync(toDir, { recursive: true });
+          for (const file of fs.readdirSync(fromDir)) {
+            fs.copyFileSync(path.join(fromDir, file), path.join(toDir, file));
+          }
+        }
+      }
 
       return config;
     },

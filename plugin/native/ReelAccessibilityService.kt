@@ -8,12 +8,14 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.PixelFormat
 import android.graphics.RadialGradient
+import android.graphics.Rect
 import android.graphics.Shader
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.os.PowerManager
 import android.provider.Settings
 import android.util.TypedValue
 import android.view.Gravity
@@ -33,13 +35,16 @@ import java.util.Locale
  * the Reels feed. The count resets automatically when the calendar day changes.
  *
  * Detection here is heuristic — there is no DOM/public API for IG's UI, so we
- * read the accessibility node tree. The two heuristics most likely to need
- * tuning against a specific Instagram version are [isReels] and [reelSignature];
- * they are isolated and commented for that reason.
+ * read the accessibility node tree. All reel-related actions route through one
+ * detector, [detectReel], which both decides "is this a full-screen reel" and
+ * extracts the per-reel identity key. The parts most likely to need tuning against
+ * a specific Instagram version are [detectReel] (which ids mark the full-screen
+ * player) and [coversScreen] (the full-screen bounds thresholds).
  */
 class ReelAccessibilityService : AccessibilityService() {
 
     private val instagramPackage = "com.instagram.android"
+    private val youtubePackage = "com.google.android.youtube"
 
     // When true the pill always shows while Instagram is foreground and prints
     // what the detector sees (in-reels flag, sampled view-ids, signature). Flip
@@ -48,21 +53,39 @@ class ReelAccessibilityService : AccessibilityService() {
 
     private var windowManager: WindowManager? = null
     private var pill: View? = null
-    private var eyeView: EyeView? = null
+    private var dialView: StopwatchView? = null
     private var pillLabel: TextView? = null
     private var overlayShown = false
 
-    // De-dupe state. Primary signal is the reels pager's scroll position, which
-    // changes the instant you swipe (no waiting for labels to load). The author
-    // "signature" is a fallback for devices/versions that don't report indices.
-    private var lastPosition = -1
-    private var lastSignature: String? = null
-    private var lastIncrementAt = 0L
-    // Block mode: throttle the auto-back so one reel isn't backed out repeatedly.
+    // Per-platform counting de-dup. Each distinct full-screen reel/short is keyed
+    // by its on-screen text; keys are compared by word-overlap (not equality) so a
+    // caption finishing loading a frame later still reads as the same item and
+    // counts once, and a bounded list of keys seen today stops a recount when you
+    // scroll back. Reels and shorts keep separate counts; the timer is shared.
+    private class Counter(val countPref: String) {
+        var lastKey: String? = null
+        val recent = ArrayDeque<String>() // newest first, capped at 50
+    }
+    private val reelCounter = Counter("count")
+    private val shortCounter = Counter("shortsCount")
+    private var seenKeysDate: String? = null
+    // Block mode: throttle the auto-back so one item isn't backed out repeatedly.
     private var lastBackAt = 0L
-    // Latches once we successfully read a scroll position, so the slower
-    // signature fallback stops firing and can't double-count.
-    private var positionModeActive = false
+    // Throttle home-screen widget pushes so the 1s time ticker doesn't spam
+    // RemoteViews updates; a changed count still forces an immediate refresh.
+    private var lastWidgetUpdateAt = 0L
+
+    // Time-on-reels meter: a 1s ticker accrues real wall-clock seconds while the
+    // full-screen player is up, so the pill shows measured minutes (not a guess).
+    // Pauses when the screen is off and stops the moment you leave reels.
+    private var reelTimerRunning = false
+    private val reelTimeTicker = object : Runnable {
+        override fun run() {
+            if (isScreenOn()) addSeconds(1)
+            render()
+            mainHandler.postDelayed(this, 1000L)
+        }
+    }
 
     private val prefs by lazy {
         getSharedPreferences("doomguard_reels", Context.MODE_PRIVATE)
@@ -82,57 +105,47 @@ class ReelAccessibilityService : AccessibilityService() {
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         event ?: return
         val pkg = event.packageName?.toString()
-        if (pkg != instagramPackage) {
-            // Left Instagram entirely — tear the pill down immediately and reset.
+        if (pkg != instagramPackage && pkg != youtubePackage) {
+            // Left a tracked app — tear the pill down immediately and reset.
             mainHandler.removeCallbacks(hideRunnable)
+            stopReelTimer()
             hideOverlay()
-            lastPosition = -1
-            lastSignature = null
+            reelCounter.lastKey = null
+            shortCounter.lastKey = null
+            // Likely heading back to the home screen — make the widget current.
+            updateWidget(force = true)
             return
         }
 
         val root = rootInActiveWindow ?: return
-        val inReels = isReels(root)
-        val position = scrollPosition(event)
+        // One detection pass per package feeds every decision below, so block mode,
+        // guilt counting, and the shared time meter can't disagree on what counts.
+        val counter = if (pkg == youtubePackage) shortCounter else reelCounter
+        val hit = if (pkg == youtubePackage) detectShort(root) else detectReel(root)
 
         if (debug) {
-            // Always visible on Instagram so we can read what the detector sees.
             mainHandler.removeCallbacks(hideRunnable)
-            render(currentCount(), debugText(root, inReels, position, reelSignature(root)))
+            render(debugText(root, hit))
             return
         }
 
-        // Block mode: kick the user out of reels instead of counting them.
+        // Block mode: kick the user out of reels/shorts instead of timing them.
         if (currentMode() == "block") {
-            handleBlockMode(inReels)
+            stopReelTimer()
+            handleBlockMode(hit != null)
             return
         }
 
-        // Guilt mode: count and show the eye.
-        // Primary trigger: the pager scroll index, available right on the swipe.
-        if (inReels && position != null) {
-            positionModeActive = true
-            if (position != lastPosition) {
-                lastPosition = position
-                maybeIncrement()
-            }
-        }
-
-        // Fallback trigger: author signature, only if indices never arrive.
-        // Computed lazily — once position-mode is active we skip the tree-walk.
-        val signature =
-            if (inReels && !positionModeActive) reelSignature(root) else null
-        if (inReels && !positionModeActive && signature != null && signature != lastSignature) {
-            lastSignature = signature
-            maybeIncrement()
-        }
-
-        if (inReels) {
-            // On a reel: keep the pill up and cancel any pending hide so a
+        // Guilt mode: accrue shared time and count per platform.
+        if (hit != null) {
+            countItem(counter, hit.key)
+            startReelTimer()
+            // On a reel/short: keep the pill up and cancel any pending hide so a
             // single mis-detected frame can't blink it out.
             mainHandler.removeCallbacks(hideRunnable)
-            render(currentCount())
+            render()
         } else if (overlayShown) {
+            stopReelTimer()
             // Possibly left reels — wait out a grace period before hiding, in
             // case this was just a transient detection gap during playback.
             mainHandler.removeCallbacks(hideRunnable)
@@ -158,35 +171,49 @@ class ReelAccessibilityService : AccessibilityService() {
         }
     }
 
-    /** Increment at most once per ~300ms so a single fling counts once. */
-    private fun maybeIncrement() {
-        val now = System.currentTimeMillis()
-        if (now - lastIncrementAt > 300L) {
-            lastIncrementAt = now
-            increment()
+    /**
+     * Count this item (reel or short, identified by [key]) into [counter] unless
+     * we've already counted it today. A null key means labels haven't loaded yet,
+     * so we wait for a later event. Keys are matched by word-overlap so a
+     * still-loading caption doesn't double-count, and scrolling back doesn't recount.
+     */
+    private fun countItem(counter: Counter, key: String?) {
+        val today = today()
+        if (seenKeysDate != today) {
+            seenKeysDate = today
+            reelCounter.recent.clear(); reelCounter.lastKey = null
+            shortCounter.recent.clear(); shortCounter.lastKey = null
         }
+        if (key == null) return
+        // Same item as the last event (its caption may have just finished loading,
+        // growing the key) — adopt the fuller key but don't recount.
+        counter.lastKey?.let { if (overlap(key, it) >= 0.9f) { counter.lastKey = key; return } }
+        counter.lastKey = key
+        // Scrolled back to an item already counted today.
+        if (counter.recent.any { overlap(key, it) >= 0.9f }) return
+        counter.recent.addFirst(key)
+        while (counter.recent.size > 50) counter.recent.removeLast()
+        incrementPref(counter.countPref)
     }
 
-    /** Adapter position of the reel currently snapped into view, if reported. */
-    private fun scrollPosition(event: AccessibilityEvent): Int? {
-        if (event.eventType != AccessibilityEvent.TYPE_VIEW_SCROLLED) return null
-        if (event.fromIndex >= 0) return event.fromIndex
-        if (event.toIndex >= 0) return event.toIndex
-        return null
+    /** Fraction of the smaller key's words shared with the other (0f..1f). */
+    private fun overlap(a: String, b: String): Float {
+        val wa = a.lowercase(Locale.US).split(' ', '|').filterTo(HashSet()) { it.isNotBlank() }
+        val wb = b.lowercase(Locale.US).split(' ', '|').filterTo(HashSet()) { it.isNotBlank() }
+        if (wa.isEmpty() || wb.isEmpty()) return if (a == b) 1f else 0f
+        val shared = wa.count { it in wb }
+        return shared.toFloat() / minOf(wa.size, wb.size)
     }
 
-    private fun debugText(
-        root: AccessibilityNodeInfo,
-        inReels: Boolean,
-        position: Int?,
-        signature: String?,
-    ): String {
+    private fun nodeText(node: AccessibilityNodeInfo): String? =
+        node.text?.toString()?.takeIf { it.isNotBlank() }
+            ?: node.contentDescription?.toString()?.takeIf { it.isNotBlank() }
+
+    private fun debugText(root: AccessibilityNodeInfo, hit: Detected?): String {
         val ids = collectViewIdFragments(root, 6).joinToString(", ")
         return buildString {
-            append("reels=").append(inReels).append("  n=").append(currentCount()).append('\n')
-            append("pos=").append(position?.toString() ?: "—")
-            append("  posMode=").append(positionModeActive).append('\n')
-            append("sig=").append(signature ?: "—").append('\n')
+            append("hit=").append(hit != null).append("  n=").append(currentCount()).append('\n')
+            append("key=").append(hit?.key ?: "—").append('\n')
             append("ids=").append(if (ids.isBlank()) "—" else ids)
         }
     }
@@ -201,32 +228,165 @@ class ReelAccessibilityService : AccessibilityService() {
 
     // --- Detection heuristics (tuning lives here) ------------------------------
 
-    /** True when the Reels viewer is the thing currently on screen. */
-    private fun isReels(root: AccessibilityNodeInfo): Boolean {
-        // Preferred signal: IG's reels view-pager id. Often obfuscated in release
-        // builds, so we also fall back to content-description fingerprints.
-        if (findByIdFragment(root, "clips_viewer") != null) return true
-        if (findByIdFragment(root, "reel_viewer") != null) return true
+    /** A confirmed full-screen reel/short and its identity [key] (null until loaded). */
+    private class Detected(val key: String?)
 
-        val descriptions = collectContentDescriptions(root, 80)
-            .joinToString(" ") { it.lowercase(Locale.US) }
-        if (descriptions.contains("reel by ")) return true
-        // The reel action rail: like + comment + share/remix shown together.
-        return descriptions.contains("like") &&
-            descriptions.contains("comment") &&
-            (descriptions.contains("remix") || descriptions.contains("share"))
+    /**
+     * THE single source of truth for "are we on a full-screen Reel, and which one".
+     * Every reel-related action — block-mode Back, guilt counting, the time meter —
+     * consumes this one result, so they can never disagree on what a reel is.
+     * Returns null unless the dedicated full-screen player actually fills the window.
+     *
+     * Anchor on ids that exist ONLY in the dedicated full-screen Reels player
+     * (Instagram's ClipsViewerFragment), verified against a real device tree and
+     * corroborated by every mature open-source IG reel-blocker (curbox, etc.):
+     *
+     *   - clips_viewer_view_pager: the vertical full-screen ReboundViewPager
+     *     holding the swipeable reels. The home feed, Explore, and profile Reels
+     *     grids are RecyclerViews and never have it; DM reel-preview bubbles don't.
+     *   - clips_ufi_component / clips_author_username / clips_captions_component:
+     *     per-reel chrome, present only once a reel has actually rendered. Requiring
+     *     at least one rejects the transient/empty clips container, while OR-ing
+     *     them survives IG's chrome-stripped fullscreen variants. The author +
+     *     caption text double as the per-reel identity [key].
+     *
+     * We deliberately do NOT match the bottom-nav Reels tab (clips_tab, on every
+     * screen), "Reel by" text (feed + DM-shared reels carry it too), nor the story
+     * player (reel_viewer_root) — all historical false positives.
+     *
+     * The id pair alone is NOT enough: IG keeps recycled/off-screen pager nodes in
+     * the tree during transitions, and embedded reels surface partial nodes. So we
+     * additionally require the pager to be visible AND to physically fill the window
+     * (coversScreen) — this is what stops Block mode from pressing Back on DM
+     * bubbles, feed items, and the reel sliding away mid-transition.
+     */
+    private fun detectReel(root: AccessibilityNodeInfo): Detected? {
+        var pager: AccessibilityNodeInfo? = null
+        var hasReelChrome = false
+        var author: String? = null
+        var caption: String? = null
+        val queue = ArrayDeque<AccessibilityNodeInfo>()
+        queue.add(root)
+        var visited = 0
+        while (queue.isNotEmpty() && visited < 3000) {
+            val node = queue.removeFirst()
+            visited++
+            node.viewIdResourceName?.let { id ->
+                when {
+                    // Stories - never the Reels player. Bail the whole detection.
+                    id.endsWith("reel_viewer_root") -> return null
+                    id.endsWith("clips_viewer_view_pager") ->
+                        if (pager == null && node.isVisibleToUser) pager = node
+                    id.endsWith("clips_ufi_component") ->
+                        if (node.isVisibleToUser) hasReelChrome = true
+                    id.endsWith("clips_author_username") -> {
+                        hasReelChrome = true
+                        if (author == null) author = nodeText(node)
+                    }
+                    id.endsWith("clips_captions_component") -> {
+                        hasReelChrome = true
+                        if (caption == null) caption = nodeText(node)
+                    }
+                }
+            }
+            for (i in 0 until node.childCount) {
+                node.getChild(i)?.let { queue.add(it) }
+            }
+        }
+        val visiblePager = pager ?: return null
+        if (!hasReelChrome) return null
+        if (!coversScreen(root, visiblePager)) return null
+        // Identity: author + caption prefix (taken before IG's "… more" truncation
+        // so an expanding caption doesn't read as a different reel). Null until loaded.
+        val key = buildString {
+            author?.trim()?.let { append(it) }
+            append('|')
+            caption?.trim()?.take(48)?.let { append(it) }
+        }.trim('|').ifBlank { null }
+        return Detected(key)
     }
 
     /**
-     * A stable-ish identifier for the reel currently in view, so that swiping to
-     * the next reel registers as exactly one new view. Prefers the author label.
+     * YouTube Shorts analog of [detectReel]. Anchors on `reel_recycler` — the
+     * vertical RecyclerView of the full-screen Shorts player, which (unlike IG) is
+     * absent from the home Shorts shelf, search, and watch page, so it alone
+     * excludes those. We still require it to fill the window (coversScreen) to
+     * reject any embedded variant and recycled/off-screen nodes.
+     *
+     * Identity: YouTube exposes no clean author/title nodes (heavy obfuscation), so
+     * we concatenate all text under `reel_player_page_content` and cleanse the fixed
+     * chrome strings, then de-dup by the same word-overlap as reels. Verified
+     * against curbox + ReVanced, which both anchor on `reel_recycler`.
      */
-    private fun reelSignature(root: AccessibilityNodeInfo): String? {
-        val descriptions = collectContentDescriptions(root, 160)
-        descriptions.firstOrNull { it.contains("Reel by", ignoreCase = true) }?.let { return it }
-        return descriptions.firstOrNull {
-            it.contains("Original audio", ignoreCase = true) || it.contains("· Audio", ignoreCase = true)
+    private fun detectShort(root: AccessibilityNodeInfo): Detected? {
+        var recycler: AccessibilityNodeInfo? = null
+        var pageContent: AccessibilityNodeInfo? = null
+        val queue = ArrayDeque<AccessibilityNodeInfo>()
+        queue.add(root)
+        var visited = 0
+        while (queue.isNotEmpty() && visited < 3000) {
+            val node = queue.removeFirst()
+            visited++
+            node.viewIdResourceName?.let { id ->
+                when {
+                    id.endsWith("reel_recycler") ->
+                        if (recycler == null && node.isVisibleToUser) recycler = node
+                    id.endsWith("reel_player_page_content") ->
+                        if (pageContent == null && node.isVisibleToUser) pageContent = node
+                }
+            }
+            for (i in 0 until node.childCount) {
+                node.getChild(i)?.let { queue.add(it) }
+            }
         }
+        val player = recycler ?: return null
+        if (!coversScreen(root, player)) return null
+        return Detected(shortKey(pageContent ?: player))
+    }
+
+    /**
+     * Per-Short identity: all text + content-descriptions under the page-content
+     * node, with YouTube's fixed chrome stripped out. Null until the overlay has
+     * loaded enough to be meaningful (or when it's clearly a non-Short layout).
+     */
+    private fun shortKey(node: AccessibilityNodeInfo): String? {
+        val raw = StringBuilder()
+        collectText(node, raw, 0)
+        val s = raw.toString()
+            .replace("Video Progress", "")
+            .replace("Tap to watch live", "")
+            .replace("Go to channel", "")
+            .replace("SearchMoreHomeHomeShortsShortsCreateSubscriptions", "")
+            .trim()
+        if (s.contains("PostPostPostlike")) return null // not a Short layout
+        if (s.length <= 15) return null // not loaded yet — wait for a later event
+        return s
+    }
+
+    private fun collectText(node: AccessibilityNodeInfo, out: StringBuilder, depth: Int) {
+        if (depth > 40) return
+        node.text?.let { if (it.isNotBlank()) out.append(it) }
+        node.contentDescription?.let { if (it.isNotBlank()) out.append(it) }
+        for (i in 0 until node.childCount) {
+            node.getChild(i)?.let { collectText(it, out, depth + 1) }
+        }
+    }
+
+    /**
+     * The immersive Reels player fills its window; an embedded reel (a home-feed
+     * item, a DM preview bubble) or a recycled/transitioning pager node does not.
+     * Compare the pager's on-screen box to the active window's box rather than to a
+     * fixed pixel size, so the test holds across devices, insets, and split-screen.
+     */
+    private fun coversScreen(root: AccessibilityNodeInfo, pager: AccessibilityNodeInfo): Boolean {
+        val win = Rect().also { root.getBoundsInScreen(it) }
+        val box = Rect().also { pager.getBoundsInScreen(it) }
+        val w = win.width()
+        val h = win.height()
+        if (w <= 0 || h <= 0) return false
+        // Off-screen / recycled pager parked outside the window.
+        if (box.right <= win.left || box.left >= win.right) return false
+        return box.width() >= w * 0.90f && box.height() >= h * 0.75f
     }
 
     // --- Counting + daily reset ------------------------------------------------
@@ -234,34 +394,85 @@ class ReelAccessibilityService : AccessibilityService() {
     private fun today(): String =
         SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
 
-    private fun currentCount(): Int {
-        val storedDate = prefs.getString("date", null)
+    /** Roll the reel count, the short count, and the shared timer over at midnight. */
+    private fun ensureToday() {
         val today = today()
-        if (storedDate != today) {
-            prefs.edit().putString("date", today).putInt("count", 0).apply()
-            return 0
+        if (prefs.getString("date", null) != today) {
+            prefs.edit()
+                .putString("date", today)
+                .putInt("count", 0)
+                .putInt("shortsCount", 0)
+                .putInt("seconds", 0)
+                .apply()
         }
+    }
+
+    private fun currentCount(): Int {
+        ensureToday()
         return prefs.getInt("count", 0)
     }
 
-    private fun increment() {
-        val next = currentCount() + 1
-        prefs.edit().putString("date", today()).putInt("count", next).apply()
+    private fun incrementPref(name: String) {
+        ensureToday()
+        prefs.edit().putInt(name, prefs.getInt(name, 0) + 1).apply()
+        updateWidget(force = true)
     }
+
+    /** Seconds spent on the full-screen Reels player today. */
+    private fun currentSeconds(): Int {
+        ensureToday()
+        return prefs.getInt("seconds", 0)
+    }
+
+    private fun addSeconds(delta: Int) {
+        ensureToday()
+        prefs.edit().putInt("seconds", prefs.getInt("seconds", 0) + delta).apply()
+        updateWidget()
+    }
+
+    /**
+     * Push the current counts to any placed home-screen widget. Throttled to once
+     * per 10s so the per-second time ticker doesn't churn RemoteViews; [force]
+     * bypasses the throttle for count changes and when leaving a tracked app.
+     */
+    private fun updateWidget(force: Boolean = false) {
+        val now = System.currentTimeMillis()
+        if (!force && now - lastWidgetUpdateAt < 10_000L) return
+        lastWidgetUpdateAt = now
+        runCatching { DoomguardWidgetProvider.updateAll(this) }
+    }
+
+    // --- Time-on-reels ticker --------------------------------------------------
+
+    private fun startReelTimer() {
+        if (reelTimerRunning) return
+        reelTimerRunning = true
+        mainHandler.postDelayed(reelTimeTicker, 1000L)
+    }
+
+    private fun stopReelTimer() {
+        if (!reelTimerRunning) return
+        reelTimerRunning = false
+        mainHandler.removeCallbacks(reelTimeTicker)
+    }
+
+    private fun isScreenOn(): Boolean =
+        (getSystemService(POWER_SERVICE) as? PowerManager)?.isInteractive ?: true
 
     // --- Floating pill overlay -------------------------------------------------
 
     /**
-     * Show the pill (building it on first call) and update it for [count].
-     * The eye reddens with the count; [debugText] overrides the label when set.
+     * Show the pill (building it on first call) and update it for the time spent
+     * on reels today. The stopwatch reddens as the minutes climb; [debugText]
+     * overrides the label when set.
      */
-    private fun render(count: Int, debugText: String? = null) {
+    private fun render(debugText: String? = null) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         if (!Settings.canDrawOverlays(this)) return
 
         if (!overlayShown) buildPill()
-        eyeView?.setIntensity(rednessFor(count))
-        pillLabel?.text = debugText ?: pillText(count)
+        dialView?.setIntensity(rednessFor(currentSeconds()))
+        pillLabel?.text = debugText ?: pillText(currentSeconds())
     }
 
     /** Block-mode pill shown the instant we bounce the user out of reels. */
@@ -269,12 +480,12 @@ class ReelAccessibilityService : AccessibilityService() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         if (!Settings.canDrawOverlays(this)) return
         if (!overlayShown) buildPill()
-        eyeView?.setIntensity(1f)
-        pillLabel?.text = "🛡  Reels blocked"
+        dialView?.setIntensity(1f)
+        pillLabel?.text = "🛡  Blocked"
     }
 
     private fun buildPill() {
-        val eye = EyeView(this)
+        val dial = StopwatchView(this)
         val label = TextView(this).apply {
             setTextColor(Color.WHITE)
             setTextSize(TypedValue.COMPLEX_UNIT_SP, if (debug) 11f else 15f)
@@ -289,8 +500,8 @@ class ReelAccessibilityService : AccessibilityService() {
             background = pillBackground()
             elevation = dp(6).toFloat()
             addView(
-                eye,
-                LinearLayout.LayoutParams(dp(38), dp(26)).apply { rightMargin = dp(11) }
+                dial,
+                LinearLayout.LayoutParams(dp(26), dp(26)).apply { rightMargin = dp(11) }
             )
             addView(label)
         }
@@ -310,7 +521,7 @@ class ReelAccessibilityService : AccessibilityService() {
         runCatching {
             windowManager?.addView(container, params)
             pill = container
-            eyeView = eye
+            dialView = dial
             pillLabel = label
             overlayShown = true
         }
@@ -318,19 +529,26 @@ class ReelAccessibilityService : AccessibilityService() {
 
     private fun hideOverlay() {
         if (!overlayShown) return
+        stopReelTimer()
         pill?.let { view -> runCatching { windowManager?.removeView(view) } }
         pill = null
-        eyeView = null
+        dialView = null
         pillLabel = null
         overlayShown = false
     }
 
-    private fun pillText(count: Int): String =
-        if (count == 1) "1 reel today" else "$count reels today"
+    private fun pillText(seconds: Int): String {
+        val minutes = seconds / 60
+        return when {
+            minutes < 1 -> "under a min scrolling"
+            minutes == 1 -> "1 min scrolling"
+            else -> "$minutes min scrolling"
+        }
+    }
 
-    /** 0 below 50 reels, ramping to fully bloodshot (1f) by ~200. */
-    private fun rednessFor(count: Int): Float =
-        ((count - 50f) / 150f).coerceIn(0f, 1f)
+    /** Calm below ~10 min, ramping to fully red (1f) by ~50 min on reels. */
+    private fun rednessFor(seconds: Int): Float =
+        ((seconds / 60f - 10f) / 40f).coerceIn(0f, 1f)
 
     private fun pillBackground(): GradientDrawable =
         GradientDrawable(
@@ -345,25 +563,6 @@ class ReelAccessibilityService : AccessibilityService() {
         (value * resources.displayMetrics.density).toInt()
 
     // --- Node-tree traversal helpers ------------------------------------------
-
-    private fun collectContentDescriptions(
-        root: AccessibilityNodeInfo,
-        limit: Int,
-    ): List<String> {
-        val results = ArrayList<String>()
-        val queue = ArrayDeque<AccessibilityNodeInfo>()
-        queue.add(root)
-        var visited = 0
-        while (queue.isNotEmpty() && visited < 2500 && results.size < limit) {
-            val node = queue.removeFirst()
-            visited++
-            node.contentDescription?.toString()?.let { if (it.isNotBlank()) results.add(it) }
-            for (i in 0 until node.childCount) {
-                node.getChild(i)?.let { queue.add(it) }
-            }
-        }
-        return results
-    }
 
     private fun findByIdFragment(
         root: AccessibilityNodeInfo,
@@ -407,20 +606,21 @@ class ReelAccessibilityService : AccessibilityService() {
 }
 
 /**
- * A small, hand-drawn eye that grows bloodshot as [intensity] rises from 0
- * (calm, healthy) to 1 (fully red, veiny). It idly blinks and, once red, emits
- * a soft pulsing glow — giving the pill a bit of life.
+ * A small, hand-drawn stopwatch whose face reddens as [intensity] rises from 0
+ * (calm) to 1 (alarming). Its hand sweeps continuously so the pill reads as a
+ * running timer, and once red it emits a soft pulsing glow — a visual nag that
+ * grows with the minutes spent on reels.
  */
-private class EyeView(context: Context) : View(context) {
+private class StopwatchView(context: Context) : View(context) {
 
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
 
     private var intensity = 0f // 0..1 redness
     private var pulse = 0f // 0..1 glow breathing
-    private var openness = 1f // 1 open .. ~0 mid-blink
+    private var handAngle = 0f // degrees, 0 = 12 o'clock, sweeping clockwise
 
     private var pulseAnimator: ValueAnimator? = null
-    private var blinkAnimator: ValueAnimator? = null
+    private var sweepAnimator: ValueAnimator? = null
 
     fun setIntensity(value: Float) {
         val clamped = value.coerceIn(0f, 1f)
@@ -442,35 +642,23 @@ private class EyeView(context: Context) : View(context) {
             }
             start()
         }
-        scheduleBlink()
-    }
-
-    override fun onDetachedFromWindow() {
-        pulseAnimator?.cancel()
-        blinkAnimator?.cancel()
-        removeCallbacks(blinkRunnable)
-        super.onDetachedFromWindow()
-    }
-
-    private val blinkRunnable = Runnable { blinkOnce() }
-
-    private fun scheduleBlink() {
-        // A touch more frequent (twitchy) as the eye gets more strained.
-        val delay = (4200L - 1800L * intensity).toLong()
-        postDelayed(blinkRunnable, delay)
-    }
-
-    private fun blinkOnce() {
-        blinkAnimator?.cancel()
-        blinkAnimator = ValueAnimator.ofFloat(1f, 0.08f, 1f).apply {
-            duration = 220L
+        sweepAnimator = ValueAnimator.ofFloat(0f, 360f).apply {
+            duration = 2000L // one sweep every two seconds
+            repeatMode = ValueAnimator.RESTART
+            repeatCount = ValueAnimator.INFINITE
+            interpolator = android.view.animation.LinearInterpolator()
             addUpdateListener {
-                openness = it.animatedValue as Float
+                handAngle = it.animatedValue as Float
                 invalidate()
             }
             start()
         }
-        scheduleBlink()
+    }
+
+    override fun onDetachedFromWindow() {
+        pulseAnimator?.cancel()
+        sweepAnimator?.cancel()
+        super.onDetachedFromWindow()
     }
 
     override fun onDraw(canvas: Canvas) {
@@ -478,53 +666,71 @@ private class EyeView(context: Context) : View(context) {
         val h = height.toFloat()
         val cx = w / 2f
         val cy = h / 2f
-        val eyeW = w * 0.94f
-        val eyeH = h * 0.66f * openness
+        val r = minOf(w, h) * 0.36f
 
-        // Pulsing red glow behind the eye when bloodshot.
+        // Pulsing red glow behind the watch when the minutes pile up.
         if (intensity > 0f) {
             val glowAlpha = (intensity * (0.30f + 0.30f * pulse) * 255f).toInt().coerceIn(0, 255)
             paint.shader = RadialGradient(
-                cx, cy, w * 0.62f,
+                cx, cy, r * 1.7f,
                 Color.argb(glowAlpha, 255, 45, 32), Color.TRANSPARENT,
                 Shader.TileMode.CLAMP
             )
             paint.style = Paint.Style.FILL
-            canvas.drawCircle(cx, cy, w * 0.62f, paint)
+            canvas.drawCircle(cx, cy, r * 1.7f, paint)
             paint.shader = null
         }
 
-        // Sclera (white of the eye), tinting pink->red with intensity.
-        val sclera = lerpColor(Color.WHITE, Color.rgb(255, 214, 208), intensity)
+        val ringColor = lerpColor(Color.rgb(150, 162, 173), Color.rgb(214, 28, 22), intensity)
+        val faceColor = lerpColor(Color.rgb(238, 240, 243), Color.rgb(255, 205, 200), intensity)
+
+        // Crown (top button) + two side buttons.
         paint.style = Paint.Style.FILL
-        paint.color = sclera
-        canvas.drawOval(cx - eyeW / 2f, cy - eyeH / 2f, cx + eyeW / 2f, cy + eyeH / 2f, paint)
+        paint.color = ringColor
+        val crownW = r * 0.30f
+        canvas.drawRoundRect(
+            cx - crownW / 2f, cy - r - r * 0.34f, cx + crownW / 2f, cy - r + r * 0.06f,
+            crownW * 0.4f, crownW * 0.4f, paint
+        )
+        paint.strokeWidth = r * 0.16f
+        paint.strokeCap = Paint.Cap.ROUND
+        paint.style = Paint.Style.STROKE
+        canvas.drawLine(cx + r * 0.62f, cy - r * 0.62f, cx + r * 0.82f, cy - r * 0.82f, paint)
 
-        // Bloodshot veins fade in as intensity climbs.
-        if (intensity > 0.02f && openness > 0.4f) {
-            paint.style = Paint.Style.STROKE
-            paint.strokeWidth = (eyeH * 0.045f).coerceAtLeast(1.5f)
-            paint.color = Color.argb((intensity * 210f).toInt().coerceIn(0, 255), 214, 28, 22)
-            val lx = cx - eyeW * 0.46f
-            val rx = cx + eyeW * 0.46f
-            canvas.drawLine(lx, cy - eyeH * 0.08f, cx - eyeH * 0.55f, cy + eyeH * 0.10f, paint)
-            canvas.drawLine(lx, cy + eyeH * 0.12f, cx - eyeH * 0.50f, cy - eyeH * 0.04f, paint)
-            canvas.drawLine(rx, cy - eyeH * 0.12f, cx + eyeH * 0.55f, cy + eyeH * 0.08f, paint)
-            canvas.drawLine(rx, cy + eyeH * 0.10f, cx + eyeH * 0.50f, cy - eyeH * 0.06f, paint)
-            paint.style = Paint.Style.FILL
+        // Face disc + ring.
+        paint.style = Paint.Style.FILL
+        paint.color = faceColor
+        canvas.drawCircle(cx, cy, r, paint)
+        paint.style = Paint.Style.STROKE
+        paint.strokeWidth = r * 0.14f
+        paint.color = ringColor
+        canvas.drawCircle(cx, cy, r, paint)
+
+        // Quarter tick marks.
+        paint.strokeWidth = r * 0.10f
+        for (i in 0 until 4) {
+            val a = Math.toRadians((i * 90).toDouble())
+            val sx = cx + (r * 0.74f) * Math.sin(a).toFloat()
+            val sy = cy - (r * 0.74f) * Math.cos(a).toFloat()
+            val ex = cx + (r * 0.92f) * Math.sin(a).toFloat()
+            val ey = cy - (r * 0.92f) * Math.cos(a).toFloat()
+            canvas.drawLine(sx, sy, ex, ey, paint)
         }
 
-        // Iris + pupil + highlight, hidden when the eye is mid-blink.
-        if (openness > 0.35f) {
-            val irisR = (eyeH * 0.46f)
-            val iris = lerpColor(Color.rgb(86, 116, 134), Color.rgb(158, 22, 16), intensity)
-            paint.color = iris
-            canvas.drawCircle(cx, cy, irisR, paint)
-            paint.color = Color.rgb(14, 14, 18)
-            canvas.drawCircle(cx, cy, irisR * 0.52f, paint)
-            paint.color = Color.argb(225, 255, 255, 255)
-            canvas.drawCircle(cx - irisR * 0.30f, cy - irisR * 0.30f, irisR * 0.18f, paint)
-        }
+        // Sweeping hand (+ short counterweight tail), darkening to red.
+        val handColor = lerpColor(Color.rgb(44, 48, 56), Color.rgb(176, 18, 14), intensity)
+        val rad = Math.toRadians(handAngle.toDouble())
+        val hx = cx + (r * 0.78f) * Math.sin(rad).toFloat()
+        val hy = cy - (r * 0.78f) * Math.cos(rad).toFloat()
+        val tx = cx - (r * 0.24f) * Math.sin(rad).toFloat()
+        val ty = cy + (r * 0.24f) * Math.cos(rad).toFloat()
+        paint.color = handColor
+        paint.strokeWidth = r * 0.13f
+        canvas.drawLine(tx, ty, hx, hy, paint)
+
+        // Center hub.
+        paint.style = Paint.Style.FILL
+        canvas.drawCircle(cx, cy, r * 0.13f, paint)
     }
 
     private fun lerpColor(from: Int, to: Int, t: Float): Int {
