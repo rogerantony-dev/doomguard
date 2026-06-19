@@ -118,10 +118,19 @@ class ReelAccessibilityService : AccessibilityService() {
         }
 
         val root = rootInActiveWindow ?: return
+        val blocking = currentMode() == "block"
         // One detection pass per package feeds every decision below, so block mode,
         // guilt counting, and the shared time meter can't disagree on what counts.
+        // Block mode uses the STRICT full-screen detectors so it never bounces you
+        // out of the home feed; Guilt mode uses BROADER ones that also count reels
+        // and shorts watched inline in the feed — there we only measure, so anything
+        // you're actually watching should count.
         val counter = if (pkg == youtubePackage) shortCounter else reelCounter
-        val hit = if (pkg == youtubePackage) detectShort(root) else detectReel(root)
+        val hit = if (pkg == youtubePackage) {
+            if (blocking) detectShort(root) else detectShortGuilt(root)
+        } else {
+            if (blocking) detectReel(root) else detectReelGuilt(root)
+        }
 
         if (debug) {
             mainHandler.removeCallbacks(hideRunnable)
@@ -130,7 +139,7 @@ class ReelAccessibilityService : AccessibilityService() {
         }
 
         // Block mode: kick the user out of reels/shorts instead of timing them.
-        if (currentMode() == "block") {
+        if (blocking) {
             stopReelTimer()
             handleBlockMode(hit != null)
             return
@@ -307,6 +316,57 @@ class ReelAccessibilityService : AccessibilityService() {
     }
 
     /**
+     * Guilt-mode reel detection — broader than [detectReel]. Counts a reel
+     * whenever its per-reel chrome (the like/comment UFI bar, author, or caption)
+     * is actually rendered, WITHOUT requiring the dedicated full-screen player or
+     * full-window coverage. That makes inline reels in the home feed count too:
+     * in guilt mode we only measure, so if you're watching it, it counts.
+     *
+     * It reuses the same trusted chrome ids as [detectReel] (which only render for
+     * a real, displayed reel card), so grids of reel thumbnails — which show no
+     * chrome — still don't trigger it, and stories (`reel_viewer_root`) bail out.
+     */
+    private fun detectReelGuilt(root: AccessibilityNodeInfo): Detected? {
+        var hasReelChrome = false
+        var author: String? = null
+        var caption: String? = null
+        val queue = ArrayDeque<AccessibilityNodeInfo>()
+        queue.add(root)
+        var visited = 0
+        while (queue.isNotEmpty() && visited < 3000) {
+            val node = queue.removeFirst()
+            visited++
+            node.viewIdResourceName?.let { id ->
+                when {
+                    id.endsWith("reel_viewer_root") -> return null // stories, not reels
+                    id.endsWith("clips_ufi_component") ->
+                        if (node.isVisibleToUser) hasReelChrome = true
+                    id.endsWith("clips_author_username") ->
+                        if (node.isVisibleToUser) {
+                            hasReelChrome = true
+                            if (author == null) author = nodeText(node)
+                        }
+                    id.endsWith("clips_captions_component") ->
+                        if (node.isVisibleToUser) {
+                            hasReelChrome = true
+                            if (caption == null) caption = nodeText(node)
+                        }
+                }
+            }
+            for (i in 0 until node.childCount) {
+                node.getChild(i)?.let { queue.add(it) }
+            }
+        }
+        if (!hasReelChrome) return null
+        val key = buildString {
+            author?.trim()?.let { append(it) }
+            append('|')
+            caption?.trim()?.take(48)?.let { append(it) }
+        }.trim('|').ifBlank { null }
+        return Detected(key)
+    }
+
+    /**
      * YouTube Shorts analog of [detectReel]. Anchors on `reel_recycler` — the
      * vertical RecyclerView of the full-screen Shorts player, which (unlike IG) is
      * absent from the home Shorts shelf, search, and watch page, so it alone
@@ -341,6 +401,37 @@ class ReelAccessibilityService : AccessibilityService() {
         }
         val player = recycler ?: return null
         if (!coversScreen(root, player)) return null
+        return Detected(shortKey(pageContent ?: player))
+    }
+
+    /**
+     * Guilt-mode shorts detection — broader than [detectShort]. Same `reel_recycler`
+     * anchor (which only exists in the full-screen Shorts player, so the home Shorts
+     * shelf of thumbnails still won't count), but without the strict full-window
+     * coverage gate, so transitions and slightly-inset players still accrue time.
+     */
+    private fun detectShortGuilt(root: AccessibilityNodeInfo): Detected? {
+        var recycler: AccessibilityNodeInfo? = null
+        var pageContent: AccessibilityNodeInfo? = null
+        val queue = ArrayDeque<AccessibilityNodeInfo>()
+        queue.add(root)
+        var visited = 0
+        while (queue.isNotEmpty() && visited < 3000) {
+            val node = queue.removeFirst()
+            visited++
+            node.viewIdResourceName?.let { id ->
+                when {
+                    id.endsWith("reel_recycler") ->
+                        if (recycler == null && node.isVisibleToUser) recycler = node
+                    id.endsWith("reel_player_page_content") ->
+                        if (pageContent == null && node.isVisibleToUser) pageContent = node
+                }
+            }
+            for (i in 0 until node.childCount) {
+                node.getChild(i)?.let { queue.add(it) }
+            }
+        }
+        val player = recycler ?: return null
         return Detected(shortKey(pageContent ?: player))
     }
 
