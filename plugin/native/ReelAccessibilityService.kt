@@ -12,6 +12,7 @@ import android.graphics.Rect
 import android.graphics.Shader
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
+import android.media.AudioManager
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
@@ -69,8 +70,13 @@ class ReelAccessibilityService : AccessibilityService() {
     private val reelCounter = Counter("count")
     private val shortCounter = Counter("shortsCount")
     private var seenKeysDate: String? = null
-    // Block mode: throttle the auto-back so one item isn't backed out repeatedly.
-    private var lastBackAt = 0L
+    // Block-mode full-screen cover overlay (replaces the old auto-Back press).
+    private var blockCover: View? = null
+    private var blockCountLabel: TextView? = null
+    private var blockCoverShown = false
+    // Transient audio focus held while the cover is up, to hush the reel's sound.
+    private var hasAudioFocus = false
+    private val audioFocusListener = AudioManager.OnAudioFocusChangeListener { }
     // Throttle home-screen widget pushes so the 1s time ticker doesn't spam
     // RemoteViews updates; a changed count still forces an immediate refresh.
     private var lastWidgetUpdateAt = 0L
@@ -91,9 +97,13 @@ class ReelAccessibilityService : AccessibilityService() {
         getSharedPreferences("doomguard_reels", Context.MODE_PRIVATE)
     }
 
+    private val audioManager by lazy {
+        getSystemService(AUDIO_SERVICE) as AudioManager
+    }
+
     // Hide hysteresis: a single mis-detected event shouldn't blink the pill out.
     private val mainHandler = Handler(Looper.getMainLooper())
-    private val hideRunnable = Runnable { hideOverlay() }
+    private val hideRunnable = Runnable { hideOverlay(); hideBlockCover() }
     private val hideDelayMs = 900L
 
     override fun onServiceConnected() {
@@ -110,6 +120,7 @@ class ReelAccessibilityService : AccessibilityService() {
             mainHandler.removeCallbacks(hideRunnable)
             stopReelTimer()
             hideOverlay()
+            hideBlockCover()
             reelCounter.lastKey = null
             shortCounter.lastKey = null
             // Likely heading back to the home screen — make the widget current.
@@ -164,17 +175,12 @@ class ReelAccessibilityService : AccessibilityService() {
 
     private fun currentMode(): String = prefs.getString("mode", "guilt") ?: "guilt"
 
-    /** Block mode: back out of reels on sight, with a throttle + a brief pill. */
+    /** Block mode: cover the full-screen reel instead of bouncing the user out. */
     private fun handleBlockMode(inReels: Boolean) {
         if (inReels) {
             mainHandler.removeCallbacks(hideRunnable)
-            val now = System.currentTimeMillis()
-            if (now - lastBackAt > 1200L) {
-                lastBackAt = now
-                performGlobalAction(GLOBAL_ACTION_BACK)
-            }
-            renderBlocked()
-        } else if (overlayShown) {
+            showBlockCover()
+        } else if (blockCoverShown) {
             mainHandler.removeCallbacks(hideRunnable)
             mainHandler.postDelayed(hideRunnable, hideDelayMs)
         }
@@ -232,6 +238,7 @@ class ReelAccessibilityService : AccessibilityService() {
     override fun onUnbind(intent: android.content.Intent?): Boolean {
         mainHandler.removeCallbacks(hideRunnable)
         hideOverlay()
+        hideBlockCover()
         return super.onUnbind(intent)
     }
 
@@ -494,6 +501,7 @@ class ReelAccessibilityService : AccessibilityService() {
                 .putInt("count", 0)
                 .putInt("shortsCount", 0)
                 .putInt("seconds", 0)
+                .putInt("blocked", 0)
                 .apply()
         }
     }
@@ -561,18 +569,139 @@ class ReelAccessibilityService : AccessibilityService() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         if (!Settings.canDrawOverlays(this)) return
 
+        hideBlockCover() // the guilt pill and the block cover are mutually exclusive
         if (!overlayShown) buildPill()
         dialView?.setIntensity(rednessFor(currentSeconds()))
         pillLabel?.text = debugText ?: pillText(currentSeconds())
     }
 
-    /** Block-mode pill shown the instant we bounce the user out of reels. */
-    private fun renderBlocked() {
+    // --- Block-mode full-screen cover ------------------------------------------
+
+    /**
+     * Cover the full-screen reel with an opaque "blocked" screen instead of
+     * pressing Back. It eats touches on the reel underneath, hushes the audio via
+     * transient audio focus, tallies a "dodge", and offers a deliberate "Back to
+     * feed" button — far less janky than fighting the OS with repeated back-presses.
+     */
+    private fun showBlockCover() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         if (!Settings.canDrawOverlays(this)) return
-        if (!overlayShown) buildPill()
-        dialView?.setIntensity(1f)
-        pillLabel?.text = "🛡  Blocked"
+        hideOverlay() // never show the guilt pill and the cover at once
+        if (!blockCoverShown) {
+            incrementPref("blocked") // one dodge per cover session
+            requestAudioSilence()
+            buildBlockCover()
+        }
+        blockCountLabel?.text = blockedCountText()
+    }
+
+    private fun buildBlockCover() {
+        val emoji = TextView(this).apply {
+            text = "🐱"
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 64f)
+            gravity = Gravity.CENTER
+        }
+        val title = TextView(this).apply {
+            text = "Reel blocked"
+            setTextColor(Color.WHITE)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 24f)
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            gravity = Gravity.CENTER
+        }
+        val sub = TextView(this).apply {
+            text = "Take a breath — Block mode caught it."
+            setTextColor(Color.parseColor("#9C9CA6"))
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
+            gravity = Gravity.CENTER
+        }
+        val count = TextView(this).apply {
+            setTextColor(Color.parseColor("#19E3FF"))
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            gravity = Gravity.CENTER
+            text = blockedCountText()
+        }
+        val button = TextView(this).apply {
+            text = "Back to feed"
+            setTextColor(Color.parseColor("#04140B"))
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            gravity = Gravity.CENTER
+            setPadding(dp(44), dp(15), dp(44), dp(15))
+            background = GradientDrawable().apply {
+                cornerRadius = dp(16).toFloat()
+                setColor(Color.parseColor("#19E3FF"))
+            }
+            isClickable = true
+            setOnClickListener {
+                hideBlockCover()
+                performGlobalAction(GLOBAL_ACTION_BACK)
+            }
+        }
+
+        val container = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            setBackgroundColor(Color.parseColor("#08080A"))
+            setPadding(dp(32), dp(32), dp(32), dp(32))
+            addView(emoji)
+            addView(title, lpTop(dp(18)))
+            addView(sub, lpTop(dp(8)))
+            addView(count, lpTop(dp(22)))
+            addView(button, lpTop(dp(30)))
+        }
+
+        val params = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+            PixelFormat.OPAQUE
+        )
+
+        runCatching {
+            windowManager?.addView(container, params)
+            blockCover = container
+            blockCountLabel = count
+            blockCoverShown = true
+        }
+    }
+
+    private fun hideBlockCover() {
+        if (!blockCoverShown) return
+        abandonAudioSilence()
+        blockCover?.let { view -> runCatching { windowManager?.removeView(view) } }
+        blockCover = null
+        blockCountLabel = null
+        blockCoverShown = false
+    }
+
+    private fun blockedCountText(): String {
+        val n = prefs.getInt("blocked", 0).coerceAtLeast(1)
+        return "🛡  $n ${if (n == 1) "reel" else "reels"} dodged today"
+    }
+
+    private fun lpTop(margin: Int) = LinearLayout.LayoutParams(
+        LinearLayout.LayoutParams.WRAP_CONTENT,
+        LinearLayout.LayoutParams.WRAP_CONTENT,
+    ).apply { topMargin = margin }
+
+    @Suppress("DEPRECATION")
+    private fun requestAudioSilence() {
+        if (hasAudioFocus) return
+        hasAudioFocus = audioManager.requestAudioFocus(
+            audioFocusListener,
+            AudioManager.STREAM_MUSIC,
+            AudioManager.AUDIOFOCUS_GAIN_TRANSIENT,
+        ) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+    }
+
+    @Suppress("DEPRECATION")
+    private fun abandonAudioSilence() {
+        if (!hasAudioFocus) return
+        audioManager.abandonAudioFocus(audioFocusListener)
+        hasAudioFocus = false
     }
 
     private fun buildPill() {
