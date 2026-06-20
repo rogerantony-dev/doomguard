@@ -12,7 +12,6 @@ import android.graphics.Rect
 import android.graphics.Shader
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
-import android.media.AudioManager
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
@@ -70,13 +69,8 @@ class ReelAccessibilityService : AccessibilityService() {
     private val reelCounter = Counter("count")
     private val shortCounter = Counter("shortsCount")
     private var seenKeysDate: String? = null
-    // Block-mode full-screen cover overlay (replaces the old auto-Back press).
-    private var blockCover: View? = null
-    private var blockCountLabel: TextView? = null
-    private var blockCoverShown = false
-    // Transient audio focus held while the cover is up, to hush the reel's sound.
-    private var hasAudioFocus = false
-    private val audioFocusListener = AudioManager.OnAudioFocusChangeListener { }
+    // Block mode: throttle the auto-back so one item isn't backed out repeatedly.
+    private var lastBackAt = 0L
     // Throttle home-screen widget pushes so the 1s time ticker doesn't spam
     // RemoteViews updates; a changed count still forces an immediate refresh.
     private var lastWidgetUpdateAt = 0L
@@ -97,13 +91,9 @@ class ReelAccessibilityService : AccessibilityService() {
         getSharedPreferences("doomguard_reels", Context.MODE_PRIVATE)
     }
 
-    private val audioManager by lazy {
-        getSystemService(AUDIO_SERVICE) as AudioManager
-    }
-
     // Hide hysteresis: a single mis-detected event shouldn't blink the pill out.
     private val mainHandler = Handler(Looper.getMainLooper())
-    private val hideRunnable = Runnable { hideOverlay(); hideBlockCover() }
+    private val hideRunnable = Runnable { hideOverlay() }
     private val hideDelayMs = 900L
 
     override fun onServiceConnected() {
@@ -120,7 +110,6 @@ class ReelAccessibilityService : AccessibilityService() {
             mainHandler.removeCallbacks(hideRunnable)
             stopReelTimer()
             hideOverlay()
-            hideBlockCover()
             reelCounter.lastKey = null
             shortCounter.lastKey = null
             // Likely heading back to the home screen — make the widget current.
@@ -129,19 +118,10 @@ class ReelAccessibilityService : AccessibilityService() {
         }
 
         val root = rootInActiveWindow ?: return
-        val blocking = currentMode() == "block"
         // One detection pass per package feeds every decision below, so block mode,
         // guilt counting, and the shared time meter can't disagree on what counts.
-        // Block mode uses the STRICT full-screen detectors so it never bounces you
-        // out of the home feed; Guilt mode uses BROADER ones that also count reels
-        // and shorts watched inline in the feed — there we only measure, so anything
-        // you're actually watching should count.
         val counter = if (pkg == youtubePackage) shortCounter else reelCounter
-        val hit = if (pkg == youtubePackage) {
-            if (blocking) detectShort(root) else detectShortGuilt(root)
-        } else {
-            if (blocking) detectReel(root) else detectReelGuilt(root)
-        }
+        val hit = if (pkg == youtubePackage) detectShort(root) else detectReel(root)
 
         if (debug) {
             mainHandler.removeCallbacks(hideRunnable)
@@ -150,7 +130,7 @@ class ReelAccessibilityService : AccessibilityService() {
         }
 
         // Block mode: kick the user out of reels/shorts instead of timing them.
-        if (blocking) {
+        if (currentMode() == "block") {
             stopReelTimer()
             handleBlockMode(hit != null)
             return
@@ -175,12 +155,17 @@ class ReelAccessibilityService : AccessibilityService() {
 
     private fun currentMode(): String = prefs.getString("mode", "guilt") ?: "guilt"
 
-    /** Block mode: cover the full-screen reel instead of bouncing the user out. */
+    /** Block mode: back out of reels on sight, with a throttle + a brief pill. */
     private fun handleBlockMode(inReels: Boolean) {
         if (inReels) {
             mainHandler.removeCallbacks(hideRunnable)
-            showBlockCover()
-        } else if (blockCoverShown) {
+            val now = System.currentTimeMillis()
+            if (now - lastBackAt > 1200L) {
+                lastBackAt = now
+                performGlobalAction(GLOBAL_ACTION_BACK)
+            }
+            renderBlocked()
+        } else if (overlayShown) {
             mainHandler.removeCallbacks(hideRunnable)
             mainHandler.postDelayed(hideRunnable, hideDelayMs)
         }
@@ -238,7 +223,6 @@ class ReelAccessibilityService : AccessibilityService() {
     override fun onUnbind(intent: android.content.Intent?): Boolean {
         mainHandler.removeCallbacks(hideRunnable)
         hideOverlay()
-        hideBlockCover()
         return super.onUnbind(intent)
     }
 
@@ -323,57 +307,6 @@ class ReelAccessibilityService : AccessibilityService() {
     }
 
     /**
-     * Guilt-mode reel detection — broader than [detectReel]. Counts a reel
-     * whenever its per-reel chrome (the like/comment UFI bar, author, or caption)
-     * is actually rendered, WITHOUT requiring the dedicated full-screen player or
-     * full-window coverage. That makes inline reels in the home feed count too:
-     * in guilt mode we only measure, so if you're watching it, it counts.
-     *
-     * It reuses the same trusted chrome ids as [detectReel] (which only render for
-     * a real, displayed reel card), so grids of reel thumbnails — which show no
-     * chrome — still don't trigger it, and stories (`reel_viewer_root`) bail out.
-     */
-    private fun detectReelGuilt(root: AccessibilityNodeInfo): Detected? {
-        var hasReelChrome = false
-        var author: String? = null
-        var caption: String? = null
-        val queue = ArrayDeque<AccessibilityNodeInfo>()
-        queue.add(root)
-        var visited = 0
-        while (queue.isNotEmpty() && visited < 3000) {
-            val node = queue.removeFirst()
-            visited++
-            node.viewIdResourceName?.let { id ->
-                when {
-                    id.endsWith("reel_viewer_root") -> return null // stories, not reels
-                    id.endsWith("clips_ufi_component") ->
-                        if (node.isVisibleToUser) hasReelChrome = true
-                    id.endsWith("clips_author_username") ->
-                        if (node.isVisibleToUser) {
-                            hasReelChrome = true
-                            if (author == null) author = nodeText(node)
-                        }
-                    id.endsWith("clips_captions_component") ->
-                        if (node.isVisibleToUser) {
-                            hasReelChrome = true
-                            if (caption == null) caption = nodeText(node)
-                        }
-                }
-            }
-            for (i in 0 until node.childCount) {
-                node.getChild(i)?.let { queue.add(it) }
-            }
-        }
-        if (!hasReelChrome) return null
-        val key = buildString {
-            author?.trim()?.let { append(it) }
-            append('|')
-            caption?.trim()?.take(48)?.let { append(it) }
-        }.trim('|').ifBlank { null }
-        return Detected(key)
-    }
-
-    /**
      * YouTube Shorts analog of [detectReel]. Anchors on `reel_recycler` — the
      * vertical RecyclerView of the full-screen Shorts player, which (unlike IG) is
      * absent from the home Shorts shelf, search, and watch page, so it alone
@@ -408,37 +341,6 @@ class ReelAccessibilityService : AccessibilityService() {
         }
         val player = recycler ?: return null
         if (!coversScreen(root, player)) return null
-        return Detected(shortKey(pageContent ?: player))
-    }
-
-    /**
-     * Guilt-mode shorts detection — broader than [detectShort]. Same `reel_recycler`
-     * anchor (which only exists in the full-screen Shorts player, so the home Shorts
-     * shelf of thumbnails still won't count), but without the strict full-window
-     * coverage gate, so transitions and slightly-inset players still accrue time.
-     */
-    private fun detectShortGuilt(root: AccessibilityNodeInfo): Detected? {
-        var recycler: AccessibilityNodeInfo? = null
-        var pageContent: AccessibilityNodeInfo? = null
-        val queue = ArrayDeque<AccessibilityNodeInfo>()
-        queue.add(root)
-        var visited = 0
-        while (queue.isNotEmpty() && visited < 3000) {
-            val node = queue.removeFirst()
-            visited++
-            node.viewIdResourceName?.let { id ->
-                when {
-                    id.endsWith("reel_recycler") ->
-                        if (recycler == null && node.isVisibleToUser) recycler = node
-                    id.endsWith("reel_player_page_content") ->
-                        if (pageContent == null && node.isVisibleToUser) pageContent = node
-                }
-            }
-            for (i in 0 until node.childCount) {
-                node.getChild(i)?.let { queue.add(it) }
-            }
-        }
-        val player = recycler ?: return null
         return Detected(shortKey(pageContent ?: player))
     }
 
@@ -501,7 +403,6 @@ class ReelAccessibilityService : AccessibilityService() {
                 .putInt("count", 0)
                 .putInt("shortsCount", 0)
                 .putInt("seconds", 0)
-                .putInt("blocked", 0)
                 .apply()
         }
     }
@@ -569,139 +470,18 @@ class ReelAccessibilityService : AccessibilityService() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         if (!Settings.canDrawOverlays(this)) return
 
-        hideBlockCover() // the guilt pill and the block cover are mutually exclusive
         if (!overlayShown) buildPill()
         dialView?.setIntensity(rednessFor(currentSeconds()))
         pillLabel?.text = debugText ?: pillText(currentSeconds())
     }
 
-    // --- Block-mode full-screen cover ------------------------------------------
-
-    /**
-     * Cover the full-screen reel with an opaque "blocked" screen instead of
-     * pressing Back. It eats touches on the reel underneath, hushes the audio via
-     * transient audio focus, tallies a "dodge", and offers a deliberate "Back to
-     * feed" button — far less janky than fighting the OS with repeated back-presses.
-     */
-    private fun showBlockCover() {
+    /** Block-mode pill shown the instant we bounce the user out of reels. */
+    private fun renderBlocked() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         if (!Settings.canDrawOverlays(this)) return
-        hideOverlay() // never show the guilt pill and the cover at once
-        if (!blockCoverShown) {
-            incrementPref("blocked") // one dodge per cover session
-            requestAudioSilence()
-            buildBlockCover()
-        }
-        blockCountLabel?.text = blockedCountText()
-    }
-
-    private fun buildBlockCover() {
-        val emoji = TextView(this).apply {
-            text = "🐱"
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 64f)
-            gravity = Gravity.CENTER
-        }
-        val title = TextView(this).apply {
-            text = "Reel blocked"
-            setTextColor(Color.WHITE)
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 24f)
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-            gravity = Gravity.CENTER
-        }
-        val sub = TextView(this).apply {
-            text = "Take a breath — Block mode caught it."
-            setTextColor(Color.parseColor("#9C9CA6"))
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
-            gravity = Gravity.CENTER
-        }
-        val count = TextView(this).apply {
-            setTextColor(Color.parseColor("#19E3FF"))
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-            gravity = Gravity.CENTER
-            text = blockedCountText()
-        }
-        val button = TextView(this).apply {
-            text = "Back to feed"
-            setTextColor(Color.parseColor("#04140B"))
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-            gravity = Gravity.CENTER
-            setPadding(dp(44), dp(15), dp(44), dp(15))
-            background = GradientDrawable().apply {
-                cornerRadius = dp(16).toFloat()
-                setColor(Color.parseColor("#19E3FF"))
-            }
-            isClickable = true
-            setOnClickListener {
-                hideBlockCover()
-                performGlobalAction(GLOBAL_ACTION_BACK)
-            }
-        }
-
-        val container = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER
-            setBackgroundColor(Color.parseColor("#08080A"))
-            setPadding(dp(32), dp(32), dp(32), dp(32))
-            addView(emoji)
-            addView(title, lpTop(dp(18)))
-            addView(sub, lpTop(dp(8)))
-            addView(count, lpTop(dp(22)))
-            addView(button, lpTop(dp(30)))
-        }
-
-        val params = WindowManager.LayoutParams(
-            WindowManager.LayoutParams.MATCH_PARENT,
-            WindowManager.LayoutParams.MATCH_PARENT,
-            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
-            PixelFormat.OPAQUE
-        )
-
-        runCatching {
-            windowManager?.addView(container, params)
-            blockCover = container
-            blockCountLabel = count
-            blockCoverShown = true
-        }
-    }
-
-    private fun hideBlockCover() {
-        if (!blockCoverShown) return
-        abandonAudioSilence()
-        blockCover?.let { view -> runCatching { windowManager?.removeView(view) } }
-        blockCover = null
-        blockCountLabel = null
-        blockCoverShown = false
-    }
-
-    private fun blockedCountText(): String {
-        val n = prefs.getInt("blocked", 0).coerceAtLeast(1)
-        return "🛡  $n ${if (n == 1) "reel" else "reels"} dodged today"
-    }
-
-    private fun lpTop(margin: Int) = LinearLayout.LayoutParams(
-        LinearLayout.LayoutParams.WRAP_CONTENT,
-        LinearLayout.LayoutParams.WRAP_CONTENT,
-    ).apply { topMargin = margin }
-
-    @Suppress("DEPRECATION")
-    private fun requestAudioSilence() {
-        if (hasAudioFocus) return
-        hasAudioFocus = audioManager.requestAudioFocus(
-            audioFocusListener,
-            AudioManager.STREAM_MUSIC,
-            AudioManager.AUDIOFOCUS_GAIN_TRANSIENT,
-        ) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
-    }
-
-    @Suppress("DEPRECATION")
-    private fun abandonAudioSilence() {
-        if (!hasAudioFocus) return
-        audioManager.abandonAudioFocus(audioFocusListener)
-        hasAudioFocus = false
+        if (!overlayShown) buildPill()
+        dialView?.setIntensity(1f)
+        pillLabel?.text = "🛡  Blocked"
     }
 
     private fun buildPill() {
