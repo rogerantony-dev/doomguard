@@ -127,9 +127,9 @@ class ReelAccessibilityService : AccessibilityService() {
     // RemoteViews updates; a changed count still forces an immediate refresh.
     private var lastWidgetUpdateAt = 0L
 
-    // Time-on-reels meter: a 1s ticker accrues real wall-clock seconds while the
-    // full-screen player is up, so the pill shows measured minutes (not a guess).
-    // Pauses when the screen is off and stops the moment you leave reels.
+    // Time-on-reels meter: a 1s ticker accrues real wall-clock seconds while a reel is
+    // up, so the pill shows measured minutes. Pauses when the screen is off; stopped by
+    // the event handler the moment you leave a reel.
     private var reelTimerRunning = false
     private val reelTimeTicker = object : Runnable {
         override fun run() {
@@ -138,6 +138,19 @@ class ReelAccessibilityService : AccessibilityService() {
             mainHandler.postDelayed(this, 1000L)
         }
     }
+
+    // Pill upkeep on our OWN clock (same pattern as the cover): once the pill is up, this
+    // polls every ~60ms and pulls it the instant you're no longer on a reel — switching
+    // tabs or leaving IG/YT — without waiting on IG's events (which go silent at rest).
+    private var pillTickerRunning = false
+    private val pillTickMs = 60L
+    private val pillTicker = object : Runnable {
+        override fun run() {
+            val keep = runCatching { refreshPill() }.getOrDefault(true)
+            if (keep) mainHandler.postDelayed(this, pillTickMs) else pillTickerRunning = false
+        }
+    }
+
 
     private val prefs by lazy {
         getSharedPreferences("doomguard_reels", Context.MODE_PRIVATE)
@@ -148,7 +161,7 @@ class ReelAccessibilityService : AccessibilityService() {
     // Hides the PILL only. The cat cover has its own ticker-driven lifecycle
     // ([refreshCover]/[hideCatCover]) so the two never fight over the same timer.
     private val hideRunnable = Runnable { hideOverlay() }
-    private val hideDelayMs = 900L
+    private val hideDelayMs = 250L
 
     override fun onServiceConnected() {
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
@@ -201,21 +214,73 @@ class ReelAccessibilityService : AccessibilityService() {
             return
         }
 
-        // Guilt mode: accrue shared time and count per platform.
-        if (hit != null) {
-            countItem(counter, hit.key)
+        // Guilt mode: show + accrue only when actually viewing a reel ON-SCREEN (so the
+        // pill doesn't latch onto an off-screen Reels-tab pager neighbour). Counting
+        // still keys off the broader detector's identity.
+        val onReel = if (pkg == youtubePackage) hit != null else onReelSurface(root)
+        if (onReel) {
+            if (hit != null) countItem(counter, hit.key)
             startReelTimer()
-            // On a reel/short: keep the pill up and cancel any pending hide so a
-            // single mis-detected frame can't blink it out.
-            mainHandler.removeCallbacks(hideRunnable)
             render()
-        } else if (overlayShown) {
-            stopReelTimer()
-            // Possibly left reels — wait out a grace period before hiding, in
-            // case this was just a transient detection gap during playback.
-            mainHandler.removeCallbacks(hideRunnable)
-            mainHandler.postDelayed(hideRunnable, hideDelayMs)
+            startPillTicker() // owns the pill's hide: pulls it the instant you leave a reel
         }
+        // No else: the pill ticker takes it down on its own clock.
+    }
+
+    private fun startPillTicker() {
+        if (pillTickerRunning) return
+        pillTickerRunning = true
+        mainHandler.postDelayed(pillTicker, pillTickMs)
+    }
+
+    private fun stopPillTicker() {
+        pillTickerRunning = false
+        mainHandler.removeCallbacks(pillTicker)
+    }
+
+    /**
+     * Returns true while the pill should stay (still on a reel) so the ticker keeps
+     * polling; false once it's pulled (you left the reel / the app), which stops it.
+     */
+    private fun refreshPill(): Boolean {
+        if (currentMode() == "block" || debug) return false
+        if (!overlayShown) return false
+        val root = rootInActiveWindow ?: return true // transient; keep checking
+        val pkg = root.packageName?.toString()
+        if (pkg != instagramPackage && pkg != youtubePackage) {
+            stopReelTimer(); hideOverlay(); return false // left the app
+        }
+        val onReel = if (pkg == youtubePackage) detectShortGuilt(root) != null else onReelSurface(root)
+        if (onReel) return true
+        stopReelTimer(); hideOverlay(); return false // off a reel → gone
+    }
+
+    /**
+     * Fast, on-screen-scoped "am I actually viewing a reel right now?" — used by the pill
+     * ticker (so it can poll quickly) and to gate the pill on/off. Two direct view-id
+     * lookups, no tree walk:
+     *  - the Reels player (`clips_viewer_view_pager`) ON-SCREEN (covers the window), which
+     *    rejects the Reels tab when it's parked off-screen as a bottom-nav pager neighbour
+     *    (that off-screen reel is exactly what kept the pill stuck on Profile/Search), or
+     *  - a large, on-screen inline feed video.
+     */
+    private fun onReelSurface(root: AccessibilityNodeInfo): Boolean {
+        val win = Rect().also { root.getBoundsInScreen(it) }
+        if (win.width() <= 0) return false
+        runCatching {
+            root.findAccessibilityNodeInfosByViewId("$instagramPackage:id/clips_viewer_view_pager")
+        }.getOrNull()?.forEach {
+            if (it.isVisibleToUser && coversScreen(root, it)) return true
+        }
+        runCatching {
+            root.findAccessibilityNodeInfosByViewId("$instagramPackage:id/video_container")
+        }.getOrNull()?.forEach {
+            if (it.isVisibleToUser) {
+                val b = Rect().also { r -> it.getBoundsInScreen(r) }
+                if (onScreenLargeVideo(b, win)) return true
+            }
+        }
+        return false
     }
 
     private fun currentMode(): String = prefs.getString("mode", "guilt") ?: "guilt"
@@ -320,7 +385,7 @@ class ReelAccessibilityService : AccessibilityService() {
                 ) navTop = b.top
             }
         }
-        if (!feedTabSelected) { hideCatCover(); return true }
+        if (!feedTabSelected) { hideCatCover(); hideOverlay(); return true }
 
         // On the home feed → work out the block bounds (leaving the stories tray) and show.
         var feedContentTop = -1
@@ -901,6 +966,7 @@ class ReelAccessibilityService : AccessibilityService() {
     private fun hideOverlay() {
         if (!overlayShown) return
         stopReelTimer()
+        stopPillTicker()
         pill?.let { view -> runCatching { windowManager?.removeView(view) } }
         pill = null
         dialView = null
