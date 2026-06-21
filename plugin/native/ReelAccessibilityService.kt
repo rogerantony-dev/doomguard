@@ -5,6 +5,7 @@ import android.animation.ValueAnimator
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Outline
 import android.graphics.Paint
 import android.graphics.PixelFormat
 import android.graphics.RadialGradient
@@ -19,10 +20,14 @@ import android.os.PowerManager
 import android.provider.Settings
 import android.util.TypedValue
 import android.view.Gravity
+import android.view.MotionEvent
 import android.view.View
+import android.view.ViewOutlineProvider
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
+import android.widget.FrameLayout
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import java.text.SimpleDateFormat
@@ -56,6 +61,53 @@ class ReelAccessibilityService : AccessibilityService() {
     private var dialView: StopwatchView? = null
     private var pillLabel: TextView? = null
     private var overlayShown = false
+
+    // Block mode: when you're on the Instagram home feed, this cover blanks the whole
+    // feed behind a cat photo + a cheeky line and EATS touches over it, so the feed
+    // can't be scrolled at all. The bottom nav is left uncovered so you can still
+    // leave. Distinct from the pill so the two never fight.
+    //
+    // Touches are consumed (no FLAG_NOT_TOUCHABLE) which both blocks scrolling and
+    // sidesteps Android's 0.8 opacity cap on pass-through overlays; we still stack a
+    // few identical layers so it's reliably opaque either way. The layers are built
+    // ONCE and kept attached for the service's life; showing/hiding just toggles their
+    // window alpha (0 ↔ visible) — no addView/removeView churn, no orphaned windows.
+    private val catLayers = mutableListOf<View>()
+    private var catImageView: ImageView? = null
+    private var catTextView: TextView? = null
+    private var catCoverVisible = false
+    private val catCoverShown get() = catCoverVisible
+    private var blockShowSeq = 0 // rotates the cat/line each time the block re-appears
+    private var lastCoverBounds: Rect? = null
+    private val catCoverLayerCount = 3
+
+    // A transparent interceptor over the stories tray: the tray stays visible (and its
+    // story circles tappable), but it swallows drags so you can't SCROLL the feed from
+    // there. A genuine tap is forwarded to the story circle as an accessibility click.
+    private var trayCover: View? = null
+    private var trayCoverActive = false
+    private var trayDownX = 0f
+    private var trayDownY = 0f
+    private var trayDownAt = 0L
+
+    // The block is shown/hidden on our OWN clock, not IG's sparse accessibility events
+    // (which go silent at rest and during tab transitions). The ticker re-scans every
+    // ~90ms and hides the block within ~3 ticks of leaving the feed.
+    private var coverTickerRunning = false
+    private val coverTickMs = 55L
+    private val coverTicker = object : Runnable {
+        override fun run() {
+            if (refreshCover()) mainHandler.postDelayed(this, coverTickMs)
+            else coverTickerRunning = false
+        }
+    }
+    private val catCount = 4
+    private val coverLines = listOf(
+        "Feed's closed.\nHere's a cat.",
+        "No scrolling today.\nCat instead.",
+        "Nope.\nGo do something else.",
+        "This is better for you,\npromise."
+    )
 
     // Per-platform counting de-dup. Each distinct full-screen reel/short is keyed
     // by its on-screen text; keys are compared by word-overlap (not equality) so a
@@ -93,6 +145,8 @@ class ReelAccessibilityService : AccessibilityService() {
 
     // Hide hysteresis: a single mis-detected event shouldn't blink the pill out.
     private val mainHandler = Handler(Looper.getMainLooper())
+    // Hides the PILL only. The cat cover has its own ticker-driven lifecycle
+    // ([refreshCover]/[hideCatCover]) so the two never fight over the same timer.
     private val hideRunnable = Runnable { hideOverlay() }
     private val hideDelayMs = 900L
 
@@ -106,10 +160,12 @@ class ReelAccessibilityService : AccessibilityService() {
         event ?: return
         val pkg = event.packageName?.toString()
         if (pkg != instagramPackage && pkg != youtubePackage) {
-            // Left a tracked app — tear the pill down immediately and reset.
+            // Left a tracked app — tear the pill + cat cover down immediately and reset.
             mainHandler.removeCallbacks(hideRunnable)
             stopReelTimer()
+            stopCoverTicker()
             hideOverlay()
+            hideCatCover()
             reelCounter.lastKey = null
             shortCounter.lastKey = null
             // Likely heading back to the home screen — make the widget current.
@@ -118,21 +174,30 @@ class ReelAccessibilityService : AccessibilityService() {
         }
 
         val root = rootInActiveWindow ?: return
-        // One detection pass per package feeds every decision below, so block mode,
-        // guilt counting, and the shared time meter can't disagree on what counts.
+
+        // Block mode is latency-sensitive — the cat cover has to track the reel and
+        // react the instant you change tabs — so it runs ONE fast detection pass per
+        // platform (not the broader guilt detectors) and reacts to the event type.
+        if (currentMode() == "block" && !debug) {
+            stopReelTimer()
+            if (pkg == youtubePackage) {
+                handleBlockFullScreen(detectShort(root) != null)
+            } else {
+                handleBlockInstagram()
+            }
+            return
+        }
+
+        // Guilt mode (and the debug overlay): one detection pass per package. Block
+        // mode uses STRICT full-screen detection so it never bounces you out of the
+        // feed; guilt uses BROADER detection that also counts reels/shorts watched
+        // inline in the feed — there we only measure, so anything you watch counts.
         val counter = if (pkg == youtubePackage) shortCounter else reelCounter
-        val hit = if (pkg == youtubePackage) detectShort(root) else detectReel(root)
+        val hit = if (pkg == youtubePackage) detectShortGuilt(root) else detectReelGuilt(root)
 
         if (debug) {
             mainHandler.removeCallbacks(hideRunnable)
             render(debugText(root, hit))
-            return
-        }
-
-        // Block mode: kick the user out of reels/shorts instead of timing them.
-        if (currentMode() == "block") {
-            stopReelTimer()
-            handleBlockMode(hit != null)
             return
         }
 
@@ -155,20 +220,141 @@ class ReelAccessibilityService : AccessibilityService() {
 
     private fun currentMode(): String = prefs.getString("mode", "guilt") ?: "guilt"
 
-    /** Block mode: back out of reels on sight, with a throttle + a brief pill. */
-    private fun handleBlockMode(inReels: Boolean) {
+    /** Throttled Back-press used to bounce the user out of a full-screen reel/short. */
+    private fun backThrottled() {
+        val now = System.currentTimeMillis()
+        if (now - lastBackAt > 1200L) {
+            lastBackAt = now
+            performGlobalAction(GLOBAL_ACTION_BACK)
+        }
+    }
+
+    /**
+     * Block mode for a full-screen-only platform (YouTube Shorts): Back-press on
+     * sight with a brief "Blocked" pill, else let the overlays fade after a grace.
+     */
+    private fun handleBlockFullScreen(inReels: Boolean) {
         if (inReels) {
             mainHandler.removeCallbacks(hideRunnable)
-            val now = System.currentTimeMillis()
-            if (now - lastBackAt > 1200L) {
-                lastBackAt = now
-                performGlobalAction(GLOBAL_ACTION_BACK)
-            }
+            hideCatCover()
+            backThrottled()
             renderBlocked()
-        } else if (overlayShown) {
+        } else if (overlayShown || catCoverShown) {
             mainHandler.removeCallbacks(hideRunnable)
             mainHandler.postDelayed(hideRunnable, hideDelayMs)
         }
+    }
+
+    /**
+     * Block mode for Instagram. An accessibility event just kicks the self-scheduling
+     * [coverTicker]; the actual decision lives in [refreshCover] so events and the
+     * ticker share one code path. Starting the ticker here means the cover keeps
+     * tracking (and hides itself) even after IG stops emitting events.
+     */
+    private fun handleBlockInstagram() {
+        if (refreshCover()) startCoverTicker()
+    }
+
+    private fun startCoverTicker() {
+        if (coverTickerRunning) return
+        coverTickerRunning = true
+        mainHandler.postDelayed(coverTicker, coverTickMs)
+    }
+
+    private fun stopCoverTicker() {
+        coverTickerRunning = false
+        mainHandler.removeCallbacks(coverTicker)
+    }
+
+    /**
+     * One Block-mode decision for the CURRENT Instagram screen. Returns true while the
+     * block is up (so the ticker keeps polling), false once we're clear.
+     *  - Full-screen Reels player → Back-press (+ "Blocked" pill), stop covering.
+     *  - On the home feed → blank the whole feed with the touch-eating cat cover.
+     *  - A couple of empty scans in a row → uncover. This is what makes leaving the
+     *    feed (or switching tabs) feel instant without flickering on a dropped frame.
+     */
+    /**
+     * Keeps polling (returns true) the whole time Instagram is foreground, so the block
+     * shows/hides within one tick (~55ms) of any screen change — including snapping back
+     * the instant a story closes onto the feed. Returns false only when we've left IG or
+     * block mode, which stops the ticker until the next event restarts it.
+     */
+    /**
+     * Keeps polling (returns true) the whole time Instagram is foreground, so the block
+     * shows/hides within one tick (~55ms) of any screen change. The decision is driven
+     * by a single fast signal — the bottom-nav HOME TAB being selected — so switching to
+     * Reels/Messages/Search/Profile (or opening a story) uncovers INSTANTLY: we don't do
+     * any heavy tree work unless we're actually on the feed and about to draw the block.
+     */
+    private fun refreshCover(): Boolean {
+        if (currentMode() != "block") { hideCatCover(); return false }
+        val root = rootInActiveWindow ?: return true // transient; keep polling
+        if (root.packageName?.toString() != instagramPackage) { hideCatCover(); return false }
+
+        val win = Rect().also { root.getBoundsInScreen(it) }
+
+        // Full-screen Reels player → bounce out (and uncover). One direct lookup.
+        if (isFullScreenReel(root, win)) {
+            hideCatCover()
+            backThrottled()
+            renderBlocked()
+            mainHandler.removeCallbacks(hideRunnable)
+            mainHandler.postDelayed(hideRunnable, hideDelayMs)
+            return true
+        }
+
+        // THE fast on/off signal: is the Home tab the selected one? Anything else
+        // (Reels/Messages/Search/Profile tab, or a story over the feed — none of which
+        // keep the Home tab selected) uncovers immediately, with no further tree work.
+        var feedTabSelected = false
+        var navTop = -1
+        runCatching {
+            root.findAccessibilityNodeInfosByViewId("$instagramPackage:id/feed_tab")
+        }.getOrNull()?.forEach { n ->
+            if (n.isVisibleToUser) {
+                if (n.isSelected) feedTabSelected = true
+                val b = Rect().also { n.getBoundsInScreen(it) }
+                if (win.height() > 0 && b.top > win.top + win.height() / 2 &&
+                    (navTop < 0 || b.top < navTop)
+                ) navTop = b.top
+            }
+        }
+        if (!feedTabSelected) { hideCatCover(); return true }
+
+        // On the home feed → work out the block bounds (leaving the stories tray) and show.
+        var feedContentTop = -1
+        runCatching {
+            root.findAccessibilityNodeInfosByViewId("$instagramPackage:id/row_feed_profile_header")
+        }.getOrNull()?.forEach { n ->
+            if (n.isVisibleToUser) {
+                val b = Rect().also { n.getBoundsInScreen(it) }
+                if (feedContentTop < 0 || b.top < feedContentTop) feedContentTop = b.top
+            }
+        }
+        val appBarBottom = win.top + dp(85)
+        val top = maxOf(appBarBottom, feedContentTop)
+        val bottom = if (navTop > win.top + win.height() / 2) navTop else win.bottom - dp(60)
+        if (win.width() <= 0 || bottom <= top) { hideCatCover(); return true }
+
+        hideOverlay() // the cover is the feedback here; don't also show the pill
+        showBlockCover(Rect(win.left, top, win.right, bottom))
+        // Guard the stories-tray strip against scroll while leaving the circles tappable.
+        if (feedContentTop > appBarBottom + dp(36)) {
+            showTrayCover(Rect(win.left, appBarBottom, win.right, feedContentTop))
+        } else {
+            hideTrayCover()
+        }
+        return true
+    }
+
+    /** Full-screen Reels player? One direct lookup of the clips pager, must cover the window. */
+    private fun isFullScreenReel(root: AccessibilityNodeInfo, win: Rect): Boolean {
+        val pagers = runCatching {
+            root.findAccessibilityNodeInfosByViewId("$instagramPackage:id/clips_viewer_view_pager")
+        }.getOrNull() ?: return false
+        for (p in pagers) if (p.isVisibleToUser && coversScreen(root, p)) return true
+        return false
     }
 
     /**
@@ -222,7 +408,9 @@ class ReelAccessibilityService : AccessibilityService() {
 
     override fun onUnbind(intent: android.content.Intent?): Boolean {
         mainHandler.removeCallbacks(hideRunnable)
+        stopCoverTicker()
         hideOverlay()
+        removeCatCover()
         return super.onUnbind(intent)
     }
 
@@ -307,6 +495,158 @@ class ReelAccessibilityService : AccessibilityService() {
     }
 
     /**
+     * Guilt-mode reel detection — broader than [detectReel]. Counts two cases the
+     * strict full-screen detector misses, because in guilt mode we only measure, so
+     * anything you're actually watching should count:
+     *
+     *   1. The dedicated Reels player, via its `clips_*` chrome (like the strict
+     *      detector, but without requiring full-window coverage).
+     *   2. A video playing inline in the HOME FEED — delegated to [detectFeedVideo],
+     *      which is fenced tightly to the focused feed row (see its doc).
+     */
+    private fun detectReelGuilt(root: AccessibilityNodeInfo): Detected? {
+        var hasReelChrome = false
+        var author: String? = null
+        var caption: String? = null
+        val queue = ArrayDeque<AccessibilityNodeInfo>()
+        queue.add(root)
+        var visited = 0
+        while (queue.isNotEmpty() && visited < 3000) {
+            val node = queue.removeFirst()
+            visited++
+            node.viewIdResourceName?.let { id ->
+                when {
+                    id.endsWith("reel_viewer_root") -> return null // stories, not reels
+                    id.endsWith("clips_ufi_component") ->
+                        if (node.isVisibleToUser) hasReelChrome = true
+                    id.endsWith("clips_author_username") ->
+                        if (node.isVisibleToUser) {
+                            hasReelChrome = true
+                            if (author == null) author = nodeText(node)
+                        }
+                    id.endsWith("clips_captions_component") ->
+                        if (node.isVisibleToUser) {
+                            hasReelChrome = true
+                            if (caption == null) caption = nodeText(node)
+                        }
+                }
+            }
+            for (i in 0 until node.childCount) {
+                node.getChild(i)?.let { queue.add(it) }
+            }
+        }
+
+        // Case 1: dedicated Reels player.
+        if (hasReelChrome) {
+            val key = buildString {
+                author?.trim()?.let { append(it) }
+                append('|')
+                caption?.trim()?.take(48)?.let { append(it) }
+            }.trim('|').ifBlank { null }
+            return Detected(key)
+        }
+
+        // Case 2: inline home-feed video.
+        return detectFeedVideo(root)?.let { Detected(it.key) }
+    }
+
+    /** An inline home-feed video: its on-screen [bounds] and its identity [key]. */
+    private class FeedVideo(val bounds: Rect, val key: String?)
+
+    /**
+     * Detect a video playing inline in the Instagram HOME FEED, returning the
+     * playing `video_container`'s screen bounds (so Block mode can cover it) and a
+     * stable per-post identity key. Shared by guilt counting and block-mode covering.
+     *
+     * Fenced tightly to the focused feed row so it never reacts to anything else:
+     * it fires ONLY when the feed UFI bar (`row_feed_view_group_buttons`, which
+     * renders only for the focused feed row) is present AND a `video_container`
+     * fills the row's width. That excludes DMs/messages (those are `direct_*` with
+     * no `row_feed_*`), Explore and profile reel grids (thumbnails, no large playing
+     * video + no feed UFI), the suggested-reels carousel (small previews), and photo
+     * posts (no `video_container`). Stories (`reel_viewer_root`) bail out.
+     */
+    private fun detectFeedVideo(root: AccessibilityNodeInfo): FeedVideo? {
+        // "We're in the home-feed timeline" — ANY visible `row_feed_*` node proves it
+        // (those ids exist only in feed rows, never DMs/Explore/grids). We use this
+        // broad signal rather than the UFI bar specifically, because once a reel fills
+        // the viewport its own like/comment bar scrolls off the bottom — the very
+        // moment we most need to cover it. The post header usually stays on screen.
+        var feedContext = false
+        var videoBox: Rect? = null
+        var author: String? = null
+        var headerDesc: String? = null
+
+        val win = Rect().also { root.getBoundsInScreen(it) }
+        if (win.width() <= 0) return null
+        val queue = ArrayDeque<AccessibilityNodeInfo>()
+        queue.add(root)
+        var visited = 0
+        while (queue.isNotEmpty() && visited < 3000) {
+            val node = queue.removeFirst()
+            visited++
+            node.viewIdResourceName?.let { id ->
+                when {
+                    id.endsWith("reel_viewer_root") -> return null // stories
+                    id.contains("row_feed_profile_header") ->
+                        if (node.isVisibleToUser) {
+                            feedContext = true
+                            if (headerDesc == null) headerDesc = node.contentDescription?.toString()
+                        }
+                    id.contains("row_feed_photo_profile_name") ->
+                        if (node.isVisibleToUser) {
+                            feedContext = true
+                            if (author == null) author = nodeText(node)
+                        }
+                    id.contains("row_feed") ->
+                        if (node.isVisibleToUser) feedContext = true
+                    id.endsWith("video_container") ->
+                        if (node.isVisibleToUser && videoBox == null) {
+                            val box = Rect().also { node.getBoundsInScreen(it) }
+                            if (onScreenLargeVideo(box, win)) videoBox = box
+                        }
+                }
+            }
+            for (i in 0 until node.childCount) {
+                node.getChild(i)?.let { queue.add(it) }
+            }
+        }
+
+        if (!feedContext) return null
+        val box = videoBox ?: return null
+        // Identity = the feed header's description with its drifting relative
+        // timestamp ("9 hours ago") stripped, falling back to the author handle.
+        val key = (headerDesc?.let { stripRelativeTime(it) } ?: author)?.trim()?.ifBlank { null }
+        return FeedVideo(box, key)
+    }
+
+    /**
+     * Is [box] a large video that's actually ON this screen (not an off-screen
+     * ViewPager neighbour)? IG keeps the feed tab alive beside Explore/Reels in a
+     * horizontal pager, and its `video_container` still reports visible — just parked
+     * at x≈-width. We require the box to fill the row's width AND straddle the visible
+     * horizontal centre, which rejects those parked neighbours so the cover releases
+     * the moment you leave the feed tab.
+     */
+    private fun onScreenLargeVideo(box: Rect, win: Rect): Boolean {
+        if (win.width() <= 0) return false
+        if (box.width() < win.width() * 0.90f) return false
+        val cx = win.centerX()
+        if (box.left > cx || box.right < cx) return false
+        return box.bottom > win.top && box.top < win.bottom
+    }
+
+    /** Drop a trailing relative timestamp so a post's key doesn't drift as time passes. */
+    private fun stripRelativeTime(s: String): String =
+        s.replace(
+            Regex(
+                "\\s*\\d+\\s*(s|m|h|d|w|second|minute|hour|day|week|month|year)s?\\s*ago\\s*$",
+                RegexOption.IGNORE_CASE
+            ),
+            ""
+        ).replace(Regex("\\s*(just now|now)\\s*$", RegexOption.IGNORE_CASE), "").trim()
+
+    /**
      * YouTube Shorts analog of [detectReel]. Anchors on `reel_recycler` — the
      * vertical RecyclerView of the full-screen Shorts player, which (unlike IG) is
      * absent from the home Shorts shelf, search, and watch page, so it alone
@@ -341,6 +681,37 @@ class ReelAccessibilityService : AccessibilityService() {
         }
         val player = recycler ?: return null
         if (!coversScreen(root, player)) return null
+        return Detected(shortKey(pageContent ?: player))
+    }
+
+    /**
+     * Guilt-mode shorts detection — broader than [detectShort]. Same `reel_recycler`
+     * anchor (which only exists in the full-screen Shorts player, so the home Shorts
+     * shelf of thumbnails still won't count), but without the strict full-window
+     * coverage gate, so transitions and slightly-inset players still accrue time.
+     */
+    private fun detectShortGuilt(root: AccessibilityNodeInfo): Detected? {
+        var recycler: AccessibilityNodeInfo? = null
+        var pageContent: AccessibilityNodeInfo? = null
+        val queue = ArrayDeque<AccessibilityNodeInfo>()
+        queue.add(root)
+        var visited = 0
+        while (queue.isNotEmpty() && visited < 3000) {
+            val node = queue.removeFirst()
+            visited++
+            node.viewIdResourceName?.let { id ->
+                when {
+                    id.endsWith("reel_recycler") ->
+                        if (recycler == null && node.isVisibleToUser) recycler = node
+                    id.endsWith("reel_player_page_content") ->
+                        if (pageContent == null && node.isVisibleToUser) pageContent = node
+                }
+            }
+            for (i in 0 until node.childCount) {
+                node.getChild(i)?.let { queue.add(it) }
+            }
+        }
+        val player = recycler ?: return null
         return Detected(shortKey(pageContent ?: player))
     }
 
@@ -536,6 +907,240 @@ class ReelAccessibilityService : AccessibilityService() {
         pillLabel = null
         overlayShown = false
     }
+
+    // --- Block-mode cat cover (inline feed reels) ------------------------------
+
+    /**
+     * Show the full-feed block at [bounds] (the feed area, above the bottom nav). The
+     * cat + line rotate each time the block re-appears, then stay put while it's up. We
+     * only push a layout when first revealing or when the bounds actually change, so a
+     * steady block doesn't churn updateViewLayout every tick.
+     */
+    private fun showBlockCover(bounds: Rect) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+        if (!Settings.canDrawOverlays(this)) return
+        if (bounds.width() <= 0 || bounds.height() <= 0) return
+        if (catLayers.isEmpty()) buildCatCover()
+        if (catLayers.isEmpty()) return
+
+        val fresh = !catCoverVisible
+        if (fresh) {
+            val idx = blockShowSeq++
+            val resId = catDrawableRes((idx % catCount) + 1)
+            if (resId != 0) catImageView?.setImageResource(resId)
+            catTextView?.text = coverLines[idx % coverLines.size]
+        }
+        if (fresh || bounds != lastCoverBounds) {
+            lastCoverBounds = Rect(bounds)
+            for (layer in catLayers) {
+                val lp = layer.layoutParams as WindowManager.LayoutParams
+                lp.x = bounds.left
+                lp.y = bounds.top
+                lp.width = bounds.width()
+                lp.height = bounds.height()
+                lp.alpha = 1f
+                runCatching { windowManager?.updateViewLayout(layer, lp) }
+            }
+        }
+        catCoverVisible = true
+    }
+
+    private fun buildCatCover() {
+        // Bottom-to-top: plain dark layers for occlusion, the cat card only on top.
+        for (i in 0 until catCoverLayerCount) {
+            val cover = FrameLayout(this).apply {
+                setBackgroundColor(Color.parseColor("#050507"))
+                isClickable = true // swallow taps/scrolls inside the block
+                setOnClickListener { /* eat */ }
+            }
+            if (i == catCoverLayerCount - 1) {
+                val img = ImageView(this).apply {
+                    scaleType = ImageView.ScaleType.CENTER_CROP
+                    clipToOutline = true
+                    outlineProvider = object : ViewOutlineProvider() {
+                        override fun getOutline(view: View, outline: Outline) {
+                            outline.setRoundRect(0, 0, view.width, view.height, dp(22).toFloat())
+                        }
+                    }
+                }
+                val label = TextView(this).apply {
+                    setTextColor(Color.WHITE)
+                    setTextSize(TypedValue.COMPLEX_UNIT_SP, 18f)
+                    typeface = Typeface.create(Typeface.DEFAULT_BOLD, Typeface.BOLD)
+                    gravity = Gravity.CENTER
+                    setLineSpacing(dp(3).toFloat(), 1f)
+                }
+                val card = LinearLayout(this).apply {
+                    orientation = LinearLayout.VERTICAL
+                    gravity = Gravity.CENTER_HORIZONTAL
+                    setPadding(dp(24), dp(24), dp(24), dp(24))
+                    addView(img, LinearLayout.LayoutParams(dp(190), dp(190)))
+                    addView(
+                        label,
+                        LinearLayout.LayoutParams(
+                            LinearLayout.LayoutParams.WRAP_CONTENT,
+                            LinearLayout.LayoutParams.WRAP_CONTENT
+                        ).apply { topMargin = dp(20) }
+                    )
+                }
+                cover.addView(
+                    card,
+                    FrameLayout.LayoutParams(
+                        FrameLayout.LayoutParams.WRAP_CONTENT,
+                        FrameLayout.LayoutParams.WRAP_CONTENT,
+                        Gravity.CENTER
+                    )
+                )
+                catImageView = img
+                catTextView = label
+            }
+
+            val params = WindowManager.LayoutParams(
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+                // No NOT_TOUCHABLE → the cover CONSUMES touches inside its bounds, so the
+                // feed can't be scrolled. NOT_FOCUSABLE keeps it from grabbing the keyboard;
+                // NOT_TOUCH_MODAL lets touches OUTSIDE its bounds (the bottom nav) through so
+                // you can still leave. LAYOUT_IN_SCREEN/NO_LIMITS → absolute screen coords.
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                    WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+                PixelFormat.TRANSLUCENT
+            ).apply {
+                gravity = Gravity.TOP or Gravity.START
+                alpha = 0f // built hidden; showBlockCover reveals
+            }
+            runCatching {
+                windowManager?.addView(cover, params)
+                catLayers.add(cover)
+            }
+        }
+    }
+
+    /** Hide the cover by making the (persistent) layers transparent — no removeView.
+     *  Does NOT touch the ticker; its lifecycle is driven by [refreshCover]'s return. */
+    private fun hideCatCover() {
+        hideTrayCover()
+        if (!catCoverVisible) return
+        catCoverVisible = false
+        lastCoverBounds = null
+        for (layer in catLayers) {
+            val lp = layer.layoutParams as WindowManager.LayoutParams
+            lp.alpha = 0f
+            runCatching { windowManager?.updateViewLayout(layer, lp) }
+        }
+    }
+
+    /** Real teardown of the cover windows — only on service unbind. */
+    private fun removeCatCover() {
+        for (layer in catLayers) runCatching { windowManager?.removeView(layer) }
+        catLayers.clear()
+        catImageView = null
+        catTextView = null
+        catCoverVisible = false
+        lastCoverBounds = null
+        trayCover?.let { runCatching { windowManager?.removeView(it) } }
+        trayCover = null
+        trayCoverActive = false
+    }
+
+    // --- Stories-tray scroll guard --------------------------------------------
+
+    /**
+     * Show/move the transparent interceptor over the stories tray at [band]. It eats
+     * drags (so the feed can't be scrolled from the tray) but forwards a genuine tap to
+     * the story circle under it via an accessibility click — so stories stay watchable.
+     */
+    private fun showTrayCover(band: Rect) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+        if (!Settings.canDrawOverlays(this)) return
+        if (band.width() <= 0 || band.height() <= 0) { hideTrayCover(); return }
+        if (trayCover == null) buildTrayCover()
+        val view = trayCover ?: return
+        val lp = view.layoutParams as WindowManager.LayoutParams
+        lp.flags = lp.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE.inv() // make it eat touches
+        lp.x = band.left
+        lp.y = band.top
+        lp.width = band.width()
+        lp.height = band.height()
+        runCatching { windowManager?.updateViewLayout(view, lp) }
+        trayCoverActive = true
+    }
+
+    private fun hideTrayCover() {
+        if (!trayCoverActive) return
+        trayCoverActive = false
+        val view = trayCover ?: return
+        val lp = view.layoutParams as WindowManager.LayoutParams
+        lp.flags = lp.flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE // pass through when idle
+        runCatching { windowManager?.updateViewLayout(view, lp) }
+    }
+
+    private fun buildTrayCover() {
+        val view = View(this).apply {
+            setOnTouchListener { _, e ->
+                when (e.actionMasked) {
+                    MotionEvent.ACTION_DOWN -> {
+                        trayDownX = e.rawX; trayDownY = e.rawY
+                        trayDownAt = System.currentTimeMillis()
+                        true
+                    }
+                    MotionEvent.ACTION_UP -> {
+                        val moved = Math.hypot(
+                            (e.rawX - trayDownX).toDouble(), (e.rawY - trayDownY).toDouble()
+                        )
+                        if (moved < dp(16) && System.currentTimeMillis() - trayDownAt < 350L) {
+                            clickNodeAt(e.rawX.toInt(), e.rawY.toInt())
+                        }
+                        true // always consume so a drag never scrolls the feed
+                    }
+                    else -> true
+                }
+            }
+        }
+        val params = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
+                WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE, // built idle
+            PixelFormat.TRANSPARENT
+        ).apply {
+            gravity = Gravity.TOP or Gravity.START
+        }
+        runCatching {
+            windowManager?.addView(view, params)
+            trayCover = view
+        }
+    }
+
+    /** Forward a tap to the clickable node (a story circle) under (x, y). */
+    private fun clickNodeAt(x: Int, y: Int) {
+        val root = rootInActiveWindow ?: return
+        deepestClickableAt(root, x, y)?.let { node ->
+            runCatching { node.performAction(AccessibilityNodeInfo.ACTION_CLICK) }
+        }
+    }
+
+    /** Deepest visible clickable node whose bounds contain (x, y), or null. */
+    private fun deepestClickableAt(node: AccessibilityNodeInfo, x: Int, y: Int): AccessibilityNodeInfo? {
+        if (!node.isVisibleToUser) return null
+        val b = Rect().also { node.getBoundsInScreen(it) }
+        if (!b.contains(x, y)) return null
+        for (i in 0 until node.childCount) {
+            node.getChild(i)?.let { deepestClickableAt(it, x, y)?.let { hit -> return hit } }
+        }
+        return if (node.isClickable) node else null
+    }
+
+    /** Resolve a bundled cat drawable (`doomguard_cat_1..N`) by index, 0 if missing. */
+    private fun catDrawableRes(index: Int): Int =
+        resources.getIdentifier("doomguard_cat_$index", "drawable", packageName)
 
     private fun pillText(seconds: Int): String {
         val minutes = seconds / 60
