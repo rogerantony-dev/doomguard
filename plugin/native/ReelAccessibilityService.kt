@@ -369,9 +369,11 @@ class ReelAccessibilityService : AccessibilityService() {
             return true
         }
 
-        // THE fast on/off signal: is the Home tab the selected one? Anything else
-        // (Reels/Messages/Search/Profile tab, or a story over the feed — none of which
-        // keep the Home tab selected) uncovers immediately, with no further tree work.
+        // On/off signal: the Home tab is selected, OR a real feed post is on screen.
+        // Both are needed — the Home tab's `isSelected` flips reliably when you switch
+        // tabs, but Instagram often DOESN'T set it on a freshly-opened feed (cold start),
+        // where a visible `row_feed_profile_header` is the dependable tell instead. Either
+        // way Explore/Reels/Profile/DMs and stories don't expose a visible feed post.
         var feedTabSelected = false
         var navTop = -1
         runCatching {
@@ -385,9 +387,6 @@ class ReelAccessibilityService : AccessibilityService() {
                 ) navTop = b.top
             }
         }
-        if (!feedTabSelected) { hideCatCover(); hideOverlay(); return true }
-
-        // On the home feed → work out the block bounds (leaving the stories tray) and show.
         var feedContentTop = -1
         runCatching {
             root.findAccessibilityNodeInfosByViewId("$instagramPackage:id/row_feed_profile_header")
@@ -397,6 +396,9 @@ class ReelAccessibilityService : AccessibilityService() {
                 if (feedContentTop < 0 || b.top < feedContentTop) feedContentTop = b.top
             }
         }
+        if (!feedTabSelected && feedContentTop < 0) { hideCatCover(); hideOverlay(); return true }
+
+        // On the home feed → work out the block bounds (leaving the stories tray) and show.
         val appBarBottom = win.top + dp(85)
         val top = maxOf(appBarBottom, feedContentTop)
         val bottom = if (navTop > win.top + win.height() / 2) navTop else win.bottom - dp(60)
