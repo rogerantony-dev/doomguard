@@ -281,7 +281,15 @@ function Chart({
   const TOP = 8;
   const BOTTOM = 22; // room for x labels
   const plotH = H - TOP - BOTTOM;
-  const slot = range === "7d" ? 40 : 26; // px per day (bar + gap)
+
+  // Measure the visible width so a handful of days stretch to fill it instead
+  // of huddling as thin bars on the left; once they'd overflow, fall back to a
+  // fixed slot and let the chart scroll.
+  const [viewW, setViewW] = useState(0);
+  const minSlot = range === "7d" ? 40 : 26; // px per day (bar + gap)
+  const avail = Math.max(0, viewW - 16); // minus contentContainer padding (8 each side)
+  const slot =
+    series.length > 0 && avail > 0 ? Math.max(minSlot, avail / series.length) : minSlot;
   const barW = Math.round(slot * 0.6);
   const width = Math.max(series.length * slot, 1);
 
@@ -301,6 +309,7 @@ function Chart({
       ref={scrollRef}
       horizontal
       showsHorizontalScrollIndicator={false}
+      onLayout={(e) => setViewW(e.nativeEvent.layout.width)}
       onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: false })}
       contentContainerStyle={{ paddingHorizontal: 8 }}
     >
