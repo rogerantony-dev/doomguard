@@ -63,6 +63,17 @@ class ReelAccessibilityService : AccessibilityService() {
     private var pillLabel: TextView? = null
     private var overlayShown = false
 
+    // Nudge state. nudgeModalShown freezes the time ticker while a modal is up;
+    // sittingSeconds measures one unbroken reel sitting; wasOnReel tracks the
+    // not-on-reel → on-reel transition so entry triggers fire once per entry.
+    private var nudgeModalShown = false
+    private var sittingSeconds = 0
+    private var wasOnReel = false
+    private val nudgeCooldownMs = 20 * 60 * 1000L
+    private var nudgeModal: View? = null
+    private var nudgeCountdown: Runnable? = null
+    private val nudgeHardKeys = setOf("latenight", "morning", "workhours")
+
     // Block mode: when you're on the Instagram home feed, this cover blanks the whole
     // feed behind a cat photo + a cheeky line and EATS touches over it, so the feed
     // can't be scrolled at all. The bottom nav is left uncovered so you can still
@@ -853,6 +864,7 @@ class ReelAccessibilityService : AccessibilityService() {
                 .putInt("count", 0)
                 .putInt("shortsCount", 0)
                 .putInt("seconds", 0)
+                .remove("nudgeFiredToday")
                 .apply()
         }
     }
@@ -870,6 +882,94 @@ class ReelAccessibilityService : AccessibilityService() {
                 .put("shorts", shorts),
         )
         prefs.edit().putString("history", history.toString()).apply()
+    }
+
+    // --- Nudge selection -------------------------------------------------------
+
+    /** "yyyy-MM-dd" for today minus [offsetDays], device-local — matches today(). */
+    private fun dayKey(offsetDays: Int): String {
+        val cal = java.util.Calendar.getInstance()
+        cal.add(java.util.Calendar.DAY_OF_YEAR, -offsetDays)
+        return SimpleDateFormat("yyyy-MM-dd", Locale.US).format(cal.time)
+    }
+
+    private fun archivedSeconds(date: String): Int {
+        val json = runCatching {
+            JSONObject(prefs.getString("history", "{}") ?: "{}")
+        }.getOrElse { JSONObject() }
+        return json.optJSONObject(date)?.optInt("seconds") ?: 0
+    }
+
+    /** Yesterday's archived reel/short seconds (0 if none recorded). */
+    private fun yesterdaySeconds(): Int = archivedSeconds(dayKey(1))
+
+    /** Rolling 7-day seconds: today's live counter + the last 6 archived days. */
+    private fun weekSeconds(): Int {
+        var total = currentSeconds()
+        for (i in 1..6) total += archivedSeconds(dayKey(i))
+        return total
+    }
+
+    private fun nudgeFiredToday(): MutableSet<String> =
+        prefs.getStringSet("nudgeFiredToday", emptySet())?.toMutableSet() ?: mutableSetOf()
+
+    private fun markNudgeFired(key: String) {
+        val set = nudgeFiredToday()
+        set.add(key)
+        prefs.edit()
+            .putStringSet("nudgeFiredToday", set)
+            .putLong("lastNudgeAt", System.currentTimeMillis())
+            .apply()
+    }
+
+    private fun cooldownActive(): Boolean =
+        System.currentTimeMillis() - prefs.getLong("lastNudgeAt", 0L) < nudgeCooldownMs
+
+    private val timeThresholds = listOf(
+        "time120" to 7200, "time90" to 5400, "time60" to 3600,
+        "time45" to 2700, "time30" to 1800, "time15" to 900,
+    )
+    private val countThresholds = listOf("count100" to 100, "count50" to 50, "count25" to 25)
+
+    private fun crossed(prev: Int, cur: Int, at: Int): Boolean = prev < at && cur >= at
+
+    /**
+     * Highest-priority eligible trigger key, or null. Mirrors components/nudges.ts
+     * (kept in sync as an executable spec of these rules).
+     */
+    private fun pickNudgeKey(
+        event: String, prevSeconds: Int, seconds: Int,
+        prevCount: Int, count: Int, prevSitting: Int, sitting: Int,
+    ): String? {
+        if (currentMode() != "guilt") return null
+        if (cooldownActive()) return null
+
+        val cal = java.util.Calendar.getInstance()
+        val hour = cal.get(java.util.Calendar.HOUR_OF_DAY)
+        val dow = cal.get(java.util.Calendar.DAY_OF_WEEK) // 1=Sun..7=Sat
+        val isWeekday = dow in java.util.Calendar.MONDAY..java.util.Calendar.FRIDAY
+        val yest = yesterdaySeconds()
+        val fired = nudgeFiredToday()
+
+        val candidates = mutableListOf<String>()
+        if (event == "entry") {
+            when {
+                hour < 5 -> candidates.add("latenight")
+                hour < 10 -> candidates.add("morning")
+                isWeekday && hour < 17 -> candidates.add("workhours")
+            }
+        } else {
+            if (crossed(prevSitting, sitting, 900)) candidates.add("sitting")
+            for ((key, at) in timeThresholds) if (crossed(prevSeconds, seconds, at)) candidates.add(key)
+            for ((key, at) in countThresholds) if (crossed(prevCount, count, at)) candidates.add(key)
+            if (yest > 0 && crossed(prevSeconds, seconds, yest + 1)) candidates.add("vsyesterday")
+        }
+        if (event == "entry") {
+            if (yest in 1..899) candidates.add("cleanday")
+            candidates.add("weekly")
+        }
+
+        return candidates.firstOrNull { it !in fired }
     }
 
     private fun currentCount(): Int {
