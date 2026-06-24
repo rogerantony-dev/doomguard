@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -292,10 +292,16 @@ function Chart({
 
   const gridY = [0, 0.5, 1].map((f) => TOP + plotH * (1 - f));
 
+  // Today is the rightmost bar; open scrolled to it so recent days (the ones
+  // with data on a new install) are visible instead of a wall of zero bars.
+  const scrollRef = useRef<ScrollView>(null);
+
   return (
     <ScrollView
+      ref={scrollRef}
       horizontal
       showsHorizontalScrollIndicator={false}
+      onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: false })}
       contentContainerStyle={{ paddingHorizontal: 8 }}
     >
       <View>
