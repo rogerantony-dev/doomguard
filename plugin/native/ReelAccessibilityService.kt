@@ -192,6 +192,7 @@ class ReelAccessibilityService : AccessibilityService() {
             stopCoverTicker()
             hideOverlay()
             hideCatCover()
+            hideNudgeModal()
             reelCounter.lastKey = null
             shortCounter.lastKey = null
             // Likely heading back to the home screen — make the widget current.
@@ -232,10 +233,18 @@ class ReelAccessibilityService : AccessibilityService() {
         // still keys off the broader detector's identity.
         val onReel = if (pkg == youtubePackage) hit != null else onReelSurface(root)
         if (onReel) {
+            val justEntered = !wasOnReel
+            wasOnReel = true
             if (hit != null) countItem(counter, hit.key)
             startReelTimer()
             render()
             startPillTicker() // owns the pill's hide: pulls it the instant you leave a reel
+            if (justEntered && !nudgeModalShown) {
+                val s = currentSeconds()
+                val c = currentCount() + prefs.getInt("shortsCount", 0)
+                pickNudgeKey("entry", s, s, c, c, sittingSeconds, sittingSeconds)
+                    ?.let { showNudge(it) }
+            }
         }
         // No else: the pill ticker takes it down on its own clock.
     }
@@ -980,8 +989,15 @@ class ReelAccessibilityService : AccessibilityService() {
 
     private fun incrementPref(name: String) {
         ensureToday()
-        prefs.edit().putInt(name, prefs.getInt(name, 0) + 1).apply()
+        val before = prefs.getInt(name, 0)
+        prefs.edit().putInt(name, before + 1).apply()
         updateWidget(force = true)
+        if (!nudgeModalShown) {
+            val total = prefs.getInt("count", 0) + prefs.getInt("shortsCount", 0)
+            val s = currentSeconds()
+            pickNudgeKey("tick", s, s, total - 1, total, sittingSeconds, sittingSeconds)
+                ?.let { showNudge(it) }
+        }
     }
 
     /** Seconds spent on the full-screen Reels player today. */
@@ -992,8 +1008,17 @@ class ReelAccessibilityService : AccessibilityService() {
 
     private fun addSeconds(delta: Int) {
         ensureToday()
-        prefs.edit().putInt("seconds", prefs.getInt("seconds", 0) + delta).apply()
+        val prev = prefs.getInt("seconds", 0)
+        val cur = prev + delta
+        prefs.edit().putInt("seconds", cur).apply()
+        val prevSitting = sittingSeconds
+        sittingSeconds += delta
         updateWidget()
+        if (!nudgeModalShown) {
+            val total = prefs.getInt("count", 0) + prefs.getInt("shortsCount", 0)
+            pickNudgeKey("tick", prev, cur, total, total, prevSitting, sittingSeconds)
+                ?.let { showNudge(it) }
+        }
     }
 
     /**
@@ -1102,6 +1127,10 @@ class ReelAccessibilityService : AccessibilityService() {
         dialView = null
         pillLabel = null
         overlayShown = false
+        // Left the reel/app (debounced by hideRunnable): end this sitting and arm
+        // the next entry trigger.
+        sittingSeconds = 0
+        wasOnReel = false
     }
 
     // --- Block-mode cat cover (inline feed reels) ------------------------------
