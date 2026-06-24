@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   AppState,
+  BackHandler,
   Modal,
   Platform,
   Pressable,
@@ -14,6 +15,7 @@ import { Ionicons } from "@expo/vector-icons";
 import * as IntentLauncher from "expo-intent-launcher";
 
 import { CatGallery } from "./components/CatGallery";
+import { HistoryScreen } from "./components/HistoryScreen";
 import { StopwatchGraphic } from "./components/StopwatchGraphic";
 import {
   C,
@@ -88,7 +90,12 @@ function useMountEffect(effect: () => void | (() => void)) {
 export default function App() {
   const [status, setStatus] = useState<DoomguardStatus | null>(() => getStatus());
   const [confirmGuilt, setConfirmGuilt] = useState(false);
+  const [screen, setScreen] = useState<"home" | "history">("home");
   const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Read the latest screen from a ref so the back-handler subscribes once
+  // (mount-only) rather than re-subscribing on every navigation.
+  const screenRef = useRef(screen);
+  screenRef.current = screen;
 
   const refresh = useCallback(() => setStatus(getStatus()), []);
 
@@ -118,8 +125,16 @@ export default function App() {
     const subscription = AppState.addEventListener("change", (state) => {
       if (state === "active") syncStatus();
     });
+    const backSub = BackHandler.addEventListener("hardwareBackPress", () => {
+      if (screenRef.current === "history") {
+        setScreen("home");
+        return true;
+      }
+      return false;
+    });
     return () => {
       subscription.remove();
+      backSub.remove();
       if (pollRef.current) clearTimeout(pollRef.current);
     };
   });
@@ -155,6 +170,10 @@ export default function App() {
     refresh();
   }, [refresh]);
 
+  if (screen === "history") {
+    return <HistoryScreen onBack={() => setScreen("home")} />;
+  }
+
   return (
     <View className="flex-1 bg-ink">
       <Glow color={accent} />
@@ -188,6 +207,7 @@ export default function App() {
                 count={count}
                 shorts={shorts}
                 onChangeMode={changeMode}
+                onOpenHistory={() => setScreen("history")}
               />
             ) : (
               <Onboarding
@@ -245,12 +265,14 @@ function Dashboard({
   count,
   shorts,
   onChangeMode,
+  onOpenHistory,
 }: {
   mode: DoomguardMode;
   seconds: number;
   count: number;
   shorts: number;
   onChangeMode: (mode: DoomguardMode) => void;
+  onOpenHistory: () => void;
 }) {
   const [catsOpen, setCatsOpen] = useState(false);
   const minutes = Math.floor(seconds / 60);
@@ -315,6 +337,14 @@ function Dashboard({
       )}
 
       <CatsButton onPress={() => setCatsOpen(true)} />
+
+      <Pressable
+        onPress={onOpenHistory}
+        className="flex-row items-center justify-center gap-2.5 rounded-2xl border border-bone/15 bg-panel py-4 active:opacity-80"
+      >
+        <Ionicons name="bar-chart" size={19} color={C.ember} />
+        <Text className="text-[16px] font-bold tracking-wide text-bone">View history</Text>
+      </Pressable>
 
       <ModeSwitch mode={mode} onChangeMode={onChangeMode} />
 
