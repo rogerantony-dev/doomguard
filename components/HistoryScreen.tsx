@@ -89,9 +89,10 @@ export function HistoryScreen({ onBack }: { onBack: () => void }) {
 
   const hasData = view.series.some((d) => d.seconds > 0 || d.count > 0 || d.shorts > 0);
 
-  const days = view.series.length;
+  // Average over days actually tracked, not the full window — a fresh install
+  // shouldn't be divided by 7 (or 30) empty days it never existed for.
   const total = metric === "time" ? view.totalSeconds : view.totalCount + view.totalShorts;
-  const avg = Math.round(total / (days || 1));
+  const avg = Math.round(total / view.coveredDays);
   const prevTotal = metric === "time" ? view.prevTotalSeconds : view.prevTotalCount;
   const trendPct =
     prevTotal != null && prevTotal > 0 ? Math.round(((total - prevTotal) / prevTotal) * 100) : null;

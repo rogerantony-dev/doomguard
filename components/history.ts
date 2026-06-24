@@ -8,6 +8,13 @@ export type HistoryView = {
   totalSeconds: number;
   totalCount: number;
   totalShorts: number;
+  /**
+   * Days actually tracked within the window — from the first recorded day (or
+   * the window start, whichever is later) through today. Use this, not
+   * `series.length`, as the daily-average denominator so a brand-new install
+   * isn't diluted by days before it existed.
+   */
+  coveredDays: number;
   /** Totals for the equal-length window immediately before; null for "all". */
   prevTotalSeconds: number | null;
   prevTotalCount: number | null;
@@ -45,14 +52,17 @@ export function buildView(history: DoomguardDay[], range: HistoryRange, today: s
   for (const d of history) byDate.set(d.date, d);
 
   const todayIndex = toDayIndex(today);
+
+  // Earliest day we have any record for — the proxy for "tracking started".
+  let earliestDataIndex = todayIndex;
+  for (const d of history) earliestDataIndex = Math.min(earliestDataIndex, toDayIndex(d.date));
+
   let startIndex: number;
   let prevStart: number | null = null;
   let prevEnd: number | null = null;
 
   if (range === "all") {
-    let earliest = todayIndex;
-    for (const d of history) earliest = Math.min(earliest, toDayIndex(d.date));
-    startIndex = earliest;
+    startIndex = earliestDataIndex;
   } else {
     const span = range === "7d" ? 7 : 30;
     startIndex = todayIndex - (span - 1);
@@ -61,6 +71,9 @@ export function buildView(history: DoomguardDay[], range: HistoryRange, today: s
   }
 
   const series = fill(byDate, startIndex, todayIndex);
+
+  // Count only days from when tracking began (clamped into the window).
+  const coveredDays = Math.max(1, todayIndex - Math.max(startIndex, earliestDataIndex) + 1);
 
   let totalSeconds = 0;
   let totalCount = 0;
@@ -79,5 +92,13 @@ export function buildView(history: DoomguardDay[], range: HistoryRange, today: s
     prevTotalCount = prev.reduce((s, d) => s + d.count + d.shorts, 0);
   }
 
-  return { series, totalSeconds, totalCount, totalShorts, prevTotalSeconds, prevTotalCount };
+  return {
+    series,
+    totalSeconds,
+    totalCount,
+    totalShorts,
+    coveredDays,
+    prevTotalSeconds,
+    prevTotalCount,
+  };
 }
