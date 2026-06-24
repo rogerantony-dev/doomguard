@@ -91,13 +91,24 @@ class ReelAccessibilityService : AccessibilityService() {
     private var trayDownY = 0f
     private var trayDownAt = 0L
 
+    // Every scan below hits the accessibility node tree (rootInActiveWindow — an
+    // expensive IPC fetch — plus id lookups). A *playing* reel fires content-changed
+    // events continuously, so scans were running at ~16-27Hz and pegged the CPU
+    // (~45-60%) — the battery drain. Fix: cap scan frequency by wall-clock. The event
+    // handler throttles its scan ([eventScanMinMs]); the two self-pollers run on a
+    // modest fixed cadence and stop entirely when the screen is off (a screen-on event
+    // restarts them). A flat poll still catches "you left the reel" within ~250ms.
+    private var lastEventScanAt = 0L
+    private val eventScanMinMs = 200L
+
     // The block is shown/hidden on our OWN clock, not IG's sparse accessibility events
-    // (which go silent at rest and during tab transitions). The ticker re-scans every
-    // ~90ms and hides the block within ~3 ticks of leaving the feed.
+    // (which go silent at rest and during tab transitions). Hides the block within
+    // ~1-2 ticks of leaving the feed.
     private var coverTickerRunning = false
-    private val coverTickMs = 55L
+    private val coverTickMs = 180L
     private val coverTicker = object : Runnable {
         override fun run() {
+            if (!isScreenOn()) { coverTickerRunning = false; return }
             if (refreshCover()) mainHandler.postDelayed(this, coverTickMs)
             else coverTickerRunning = false
         }
@@ -140,15 +151,17 @@ class ReelAccessibilityService : AccessibilityService() {
         }
     }
 
-    // Pill upkeep on our OWN clock (same pattern as the cover): once the pill is up, this
-    // polls every ~60ms and pulls it the instant you're no longer on a reel — switching
-    // tabs or leaving IG/YT — without waiting on IG's events (which go silent at rest).
+    // Pill upkeep on our OWN clock (same pattern as the cover): once the pill is up,
+    // this polls and pulls it the instant you're no longer on a reel — switching tabs
+    // or leaving IG/YT — without waiting on IG's events (which go silent at rest).
     private var pillTickerRunning = false
-    private val pillTickMs = 60L
+    private val pillTickMs = 250L
     private val pillTicker = object : Runnable {
         override fun run() {
+            if (!isScreenOn()) { pillTickerRunning = false; return }
             val keep = runCatching { refreshPill() }.getOrDefault(true)
-            if (keep) mainHandler.postDelayed(this, pillTickMs) else pillTickerRunning = false
+            if (keep) mainHandler.postDelayed(this, pillTickMs)
+            else pillTickerRunning = false
         }
     }
 
@@ -175,6 +188,7 @@ class ReelAccessibilityService : AccessibilityService() {
         val pkg = event.packageName?.toString()
         if (pkg != instagramPackage && pkg != youtubePackage) {
             // Left a tracked app — tear the pill + cat cover down immediately and reset.
+            // (Never throttled — leaving must be instant.)
             mainHandler.removeCallbacks(hideRunnable)
             stopReelTimer()
             stopCoverTicker()
@@ -186,6 +200,12 @@ class ReelAccessibilityService : AccessibilityService() {
             updateWidget(force = true)
             return
         }
+
+        // A playing reel floods content-changed events; cap the expensive node scan
+        // to ~5Hz. The self-pollers (cover/pill) still catch anything between events.
+        val now = System.currentTimeMillis()
+        if (!debug && now - lastEventScanAt < eventScanMinMs) return
+        lastEventScanAt = now
 
         val root = rootInActiveWindow ?: return
 
