@@ -3,6 +3,7 @@ package com.rogerantony.doomguard
 import android.accessibilityservice.AccessibilityService
 import android.animation.ValueAnimator
 import android.content.Context
+import android.content.Intent
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Outline
@@ -1241,6 +1242,190 @@ class ReelAccessibilityService : AccessibilityService() {
         trayCoverActive = false
     }
 
+    // --- Nudge modal -----------------------------------------------------------
+
+    /** Build + show the center modal for [key], if still eligible. */
+    private fun showNudge(key: String) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+        if (!Settings.canDrawOverlays(this)) return
+        if (nudgeModalShown) return
+
+        val (tag, headline, body) = nudgeCopy(key)
+        val hard = key in nudgeHardKeys
+
+        val card = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(18), dp(16), dp(18), dp(16))
+            background = nudgeCardBackground()
+            elevation = dp(12).toFloat()
+        }
+
+        if (tag != null) {
+            card.addView(TextView(this).apply {
+                text = tag
+                setTextColor(Color.parseColor("#19E3FF"))
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 10f)
+                typeface = Typeface.create(Typeface.MONOSPACE, Typeface.BOLD)
+                letterSpacing = 0.15f
+            }, LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { bottomMargin = dp(8) })
+        }
+
+        // Random cat photo.
+        val img = ImageView(this).apply {
+            scaleType = ImageView.ScaleType.CENTER_CROP
+            clipToOutline = true
+            outlineProvider = object : ViewOutlineProvider() {
+                override fun getOutline(view: View, outline: Outline) {
+                    outline.setRoundRect(0, 0, view.width, view.height, dp(13).toFloat())
+                }
+            }
+            val n = (blockShowSeq++ % catCount) + 1
+            val resId = catDrawableRes(n)
+            if (resId != 0) setImageResource(resId)
+        }
+        card.addView(img, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(124)))
+
+        card.addView(TextView(this).apply {
+            text = headline
+            setTextColor(Color.parseColor("#F4F1EA"))
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 18f)
+            typeface = Typeface.create(Typeface.DEFAULT_BOLD, Typeface.BOLD)
+        }, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT
+        ).apply { topMargin = dp(12) })
+
+        card.addView(TextView(this).apply {
+            text = body
+            setTextColor(Color.parseColor("#9C9CA6"))
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
+            setLineSpacing(dp(2).toFloat(), 1f)
+        }, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+        ).apply { topMargin = dp(5) })
+
+        // Amber hazard divider (simplified solid bar of the app's hazard tape).
+        card.addView(View(this).apply {
+            background = GradientDrawable().apply {
+                cornerRadius = dp(4).toFloat()
+                setColor(Color.parseColor("#F5A524"))
+            }
+        }, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(6)).apply {
+            topMargin = dp(14); bottomMargin = dp(12)
+        })
+
+        val catBtn = TextView(this).apply {
+            text = "Watch a cat instead"
+            gravity = Gravity.CENTER
+            setTextColor(Color.WHITE)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
+            typeface = Typeface.create(Typeface.DEFAULT_BOLD, Typeface.BOLD)
+            setPadding(0, dp(12), 0, dp(12))
+            background = nudgeButtonBackground("#7C3AED")
+            setOnClickListener { hideNudgeModal(); launchCatGallery() }
+        }
+        card.addView(catBtn, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+        ))
+
+        val keepBtn = TextView(this).apply {
+            gravity = Gravity.CENTER
+            setTextColor(Color.parseColor("#5C5C66"))
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            setPadding(0, dp(10), 0, dp(6))
+            text = "Keep scrolling"
+        }
+        card.addView(keepBtn, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+        ).apply { topMargin = dp(4) })
+
+        // Full-screen scrim that consumes touches (blocks the reel underneath).
+        val scrim = FrameLayout(this).apply {
+            setBackgroundColor(Color.parseColor("#BF000000"))
+            isClickable = true
+            setOnClickListener { /* eat */ }
+            addView(card, FrameLayout.LayoutParams(
+                dp(300), FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.CENTER
+            ).apply { leftMargin = dp(16); rightMargin = dp(16) })
+        }
+
+        // HARD: gate "Keep scrolling" behind a 3-2-1 countdown; SOFT: instant.
+        if (hard) {
+            var remaining = 3
+            keepBtn.isEnabled = false
+            keepBtn.alpha = 0.5f
+            keepBtn.text = "Keep scrolling ($remaining)"
+            val tick = object : Runnable {
+                override fun run() {
+                    remaining -= 1
+                    if (remaining <= 0) {
+                        keepBtn.text = "Keep scrolling"
+                        keepBtn.isEnabled = true
+                        keepBtn.alpha = 1f
+                        keepBtn.setOnClickListener { hideNudgeModal() }
+                        nudgeCountdown = null
+                    } else {
+                        keepBtn.text = "Keep scrolling ($remaining)"
+                        mainHandler.postDelayed(this, 1000L)
+                    }
+                }
+            }
+            nudgeCountdown = tick
+            mainHandler.postDelayed(tick, 1000L)
+        } else {
+            keepBtn.setOnClickListener { hideNudgeModal() }
+        }
+
+        val params = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+            PixelFormat.TRANSLUCENT
+        ).apply { gravity = Gravity.TOP or Gravity.START }
+
+        runCatching {
+            windowManager?.addView(scrim, params)
+            nudgeModal = scrim
+            nudgeModalShown = true
+            markNudgeFired(key)
+        }
+    }
+
+    private fun hideNudgeModal() {
+        nudgeCountdown?.let { mainHandler.removeCallbacks(it) }
+        nudgeCountdown = null
+        nudgeModal?.let { view -> runCatching { windowManager?.removeView(view) } }
+        nudgeModal = null
+        nudgeModalShown = false
+    }
+
+    /** Bring Doomguard to the front and ask it to open the cat gallery. */
+    private fun launchCatGallery() {
+        prefs.edit().putBoolean("openCats", true).apply()
+        val intent = packageManager.getLaunchIntentForPackage(packageName)?.apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
+        }
+        runCatching { if (intent != null) startActivity(intent) }
+    }
+
+    private fun nudgeCardBackground(): GradientDrawable =
+        GradientDrawable().apply {
+            setColor(Color.parseColor("#141419"))
+            cornerRadius = dp(20).toFloat()
+            setStroke(dp(1), Color.parseColor("#1AF4F1EA"))
+        }
+
+    private fun nudgeButtonBackground(hex: String): GradientDrawable =
+        GradientDrawable().apply {
+            setColor(Color.parseColor(hex))
+            cornerRadius = dp(11).toFloat()
+        }
+
     // --- Stories-tray scroll guard --------------------------------------------
 
     /**
@@ -1344,6 +1529,33 @@ class ReelAccessibilityService : AccessibilityService() {
             minutes == 1 -> "1 min scrolling"
             else -> "$minutes min scrolling"
         }
+    }
+
+    /** (tag, headline, body) for a nudge trigger; tag is null when there's no // label. */
+    private fun nudgeCopy(key: String): Triple<String?, String, String> = when (key) {
+        "latenight" -> Triple(null, "It's late. Put it down.", "Nothing good happens in the reels at this hour. Go to sleep.")
+        "morning" -> Triple(null, "Reels before 10am?", "You could be doing something better than ruining your morning with this.")
+        "workhours" -> Triple(null, "Mid-workday scroll.", "The deadline didn't move. The cat's judging you.")
+        "sitting" -> Triple("// 15 MIN STRAIGHT", "Come up for air.", "Fifteen minutes in the feed without stopping.")
+        "time120" -> Triple("// 2 HOURS TODAY", "Two hours.", "Two hours of your day, gone. What are we doing here.")
+        "time90" -> Triple("// 90 MIN TODAY", "Ninety minutes.", "An hour and a half. The cat has napped twice.")
+        "time60" -> Triple("// 1 HOUR TODAY", "An hour, gone.", "That's a full workout you skipped.")
+        "time45" -> Triple("// 45 MIN TODAY", "Forty-five minutes.", "Most of a TV episode, spent scrolling.")
+        "time30" -> Triple("// 30 MIN TODAY", "Half an hour, gone.", "That's a real chunk of your day, in the feed.")
+        "time15" -> Triple("// 15 MIN TODAY", "Fifteen minutes today.", "The scroll is starting to pull. Worth it?")
+        "count100" -> Triple("// 100 REELS TODAY", "A hundred reels.", "You've thumbed past 100 today. Triple digits.")
+        "count50" -> Triple("// 50 REELS TODAY", "Fifty reels deep.", "Fifty swipes today. The cat lost count.")
+        "count25" -> Triple("// 25 REELS TODAY", "Twenty-five reels.", "Twenty-five down. Notice you're doing it?")
+        "vsyesterday" -> Triple(null, "Past yesterday already.", "You've out-scrolled your whole yesterday — and it's not over.")
+        "cleanday" -> Triple(null, "Yesterday was clean.", "Barely scrolled. Keep it going today.")
+        "weekly" -> Triple("// THIS WEEK", "This week so far", "${fmtDurationLong(weekSeconds())} in the feed this week.")
+        else -> Triple(null, "Enough scrolling.", "The cat would rather you stopped.")
+    }
+
+    /** "1h 5m" / "45m" from seconds, for nudge copy. */
+    private fun fmtDurationLong(seconds: Int): String {
+        val m = seconds / 60
+        return if (m < 60) "${m}m" else "${m / 60}h ${m % 60}m"
     }
 
     /** Calm below ~10 min, ramping to fully red (1f) by ~50 min on reels. */
