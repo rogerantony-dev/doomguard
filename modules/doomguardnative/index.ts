@@ -19,9 +19,21 @@ export type DoomguardStatus = {
   mode: DoomguardMode;
 };
 
+export type DoomguardDay = {
+  /** Local calendar day, "yyyy-mm-dd". */
+  date: string;
+  /** Seconds on short-form players (reels + shorts) that day. */
+  seconds: number;
+  /** Instagram Reels counted that day. */
+  count: number;
+  /** YouTube Shorts counted that day. */
+  shorts: number;
+};
+
 type NativeModule = {
   getStatus(): DoomguardStatus;
   setMode(mode: DoomguardMode): void;
+  getHistory(): DoomguardDay[];
 };
 
 // Lazily resolved so JS never crashes if the native module isn't present
@@ -48,5 +60,14 @@ export function setMode(mode: DoomguardMode): void {
     nativeModule.setMode(mode);
   } catch {
     // no-op if the native module isn't available
+  }
+}
+
+export function getHistory(): DoomguardDay[] {
+  if (!nativeModule) return [];
+  try {
+    return nativeModule.getHistory();
+  } catch {
+    return [];
   }
 }

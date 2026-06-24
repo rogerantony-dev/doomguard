@@ -5,6 +5,7 @@ import android.provider.Settings
 import android.text.TextUtils
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
+import org.json.JSONObject
 
 /**
  * Reports the live state of the two permissions the Reel counter needs, plus
@@ -35,6 +36,12 @@ class DoomguardnativeModule : Module() {
       val context = appContext.reactContext?.applicationContext ?: return@Function
       val normalized = if (mode == "block") "block" else "guilt"
       prefs(context).edit().putString("mode", normalized).apply()
+    }
+
+    Function("getHistory") {
+      val context = appContext.reactContext?.applicationContext
+        ?: return@Function emptyList<Map<String, Any>>()
+      history(context)
     }
   }
 
@@ -94,5 +101,50 @@ class DoomguardnativeModule : Module() {
   private fun todaySeconds(context: Context): Int {
     val prefs = context.getSharedPreferences("doomguard_reels", Context.MODE_PRIVATE)
     return prefs.getInt("seconds", 0)
+  }
+
+  /**
+   * Archived days merged with the in-progress (or stale, not-yet-rolled) live
+   * day. The live counters are filed under their own stored date, so a
+   * yesterday-counter read on a new day is attributed to yesterday, never
+   * mislabeled "today".
+   */
+  private fun history(context: Context): List<Map<String, Any>> {
+    val prefs = prefs(context)
+    val byDate = linkedMapOf<String, IntArray>() // date -> [seconds, count, shorts]
+
+    runCatching {
+      val json = JSONObject(prefs.getString("history", "{}") ?: "{}")
+      val keys = json.keys()
+      while (keys.hasNext()) {
+        val date = keys.next()
+        val day = json.getJSONObject(date)
+        byDate[date] = intArrayOf(
+          day.optInt("seconds"),
+          day.optInt("count"),
+          day.optInt("shorts"),
+        )
+      }
+    }
+
+    val liveDate = prefs.getString("date", null)
+    if (liveDate != null) {
+      val cur = byDate[liveDate] ?: intArrayOf(0, 0, 0)
+      cur[0] += prefs.getInt("seconds", 0)
+      cur[1] += prefs.getInt("count", 0)
+      cur[2] += prefs.getInt("shortsCount", 0)
+      byDate[liveDate] = cur
+    }
+
+    return byDate.entries
+      .sortedBy { it.key }
+      .map { (date, v) ->
+        mapOf(
+          "date" to date,
+          "seconds" to v[0],
+          "count" to v[1],
+          "shorts" to v[2],
+        )
+      }
   }
 }
