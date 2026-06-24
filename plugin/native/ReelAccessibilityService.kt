@@ -33,6 +33,7 @@ import android.widget.TextView
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import org.json.JSONObject
 
 /**
  * Watches the Instagram app and counts how many Reels the user scrolls through
@@ -835,7 +836,18 @@ class ReelAccessibilityService : AccessibilityService() {
     /** Roll the reel count, the short count, and the shared timer over at midnight. */
     private fun ensureToday() {
         val today = today()
-        if (prefs.getString("date", null) != today) {
+        val storedDate = prefs.getString("date", null)
+        if (storedDate != today) {
+            // Archive the finishing day into history before we zero it, so the
+            // graph keeps it. Only days with real activity are stored.
+            if (storedDate != null) {
+                val seconds = prefs.getInt("seconds", 0)
+                val count = prefs.getInt("count", 0)
+                val shorts = prefs.getInt("shortsCount", 0)
+                if (seconds > 0 || count > 0 || shorts > 0) {
+                    archiveDay(storedDate, seconds, count, shorts)
+                }
+            }
             prefs.edit()
                 .putString("date", today)
                 .putInt("count", 0)
@@ -843,6 +855,21 @@ class ReelAccessibilityService : AccessibilityService() {
                 .putInt("seconds", 0)
                 .apply()
         }
+    }
+
+    /** Fold one finished day's totals into the persisted history JSON map. */
+    private fun archiveDay(date: String, seconds: Int, count: Int, shorts: Int) {
+        val history = runCatching {
+            JSONObject(prefs.getString("history", "{}") ?: "{}")
+        }.getOrElse { JSONObject() }
+        history.put(
+            date,
+            JSONObject()
+                .put("seconds", seconds)
+                .put("count", count)
+                .put("shorts", shorts),
+        )
+        prefs.edit().putString("history", history.toString()).apply()
     }
 
     private fun currentCount(): Int {
