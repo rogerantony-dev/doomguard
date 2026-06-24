@@ -43,6 +43,14 @@ class DoomguardnativeModule : Module() {
         ?: return@Function emptyList<Map<String, Any>>()
       history(context)
     }
+
+    Function("consumeOpenCats") {
+      val context = appContext.reactContext?.applicationContext ?: return@Function false
+      val p = prefs(context)
+      val v = p.getBoolean("openCats", false)
+      if (v) p.edit().putBoolean("openCats", false).apply()
+      v
+    }
   }
 
   private fun defaultStatus(): Map<String, Any> = mapOf(

@@ -34,6 +34,7 @@ type NativeModule = {
   getStatus(): DoomguardStatus;
   setMode(mode: DoomguardMode): void;
   getHistory(): DoomguardDay[];
+  consumeOpenCats(): boolean;
 };
 
 // Lazily resolved so JS never crashes if the native module isn't present
@@ -69,5 +70,14 @@ export function getHistory(): DoomguardDay[] {
     return nativeModule.getHistory();
   } catch {
     return [];
+  }
+}
+
+export function consumeOpenCats(): boolean {
+  if (!nativeModule) return false;
+  try {
+    return nativeModule.consumeOpenCats();
+  } catch {
+    return false;
   }
 }
