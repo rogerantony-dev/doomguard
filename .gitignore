@@ -46,3 +46,4 @@ modules/**/build/
 # design preview render output (regenerate: node design-previews/gen.js)
 design-previews/out/
 design-previews/out-ledger/
+.superpowers/
