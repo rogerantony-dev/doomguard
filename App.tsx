@@ -31,6 +31,7 @@ import {
   StatusStrip,
 } from "./components/console";
 import {
+  consumeOpenCats,
   getStatus,
   setMode,
   type DoomguardMode,
@@ -91,6 +92,7 @@ export default function App() {
   const [status, setStatus] = useState<DoomguardStatus | null>(() => getStatus());
   const [confirmGuilt, setConfirmGuilt] = useState(false);
   const [screen, setScreen] = useState<"home" | "history">("home");
+  const [catsOpen, setCatsOpen] = useState(false);
   const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Read the latest screen from a ref so the back-handler subscribes once
   // (mount-only) rather than re-subscribing on every navigation.
@@ -98,6 +100,12 @@ export default function App() {
   screenRef.current = screen;
 
   const refresh = useCallback(() => setStatus(getStatus()), []);
+
+  // The accessibility service sets an openCats flag when "Watch a cat instead"
+  // is tapped on a nudge; consume it on resume and open the gallery.
+  const checkOpenCats = useCallback(() => {
+    if (consumeOpenCats()) setCatsOpen(true);
+  }, []);
 
   // Poll status for a few seconds after coming to the foreground. The
   // accessibility service writes its "connected" heartbeat a beat after you
@@ -122,8 +130,12 @@ export default function App() {
 
   useMountEffect(() => {
     syncStatus();
+    checkOpenCats();
     const subscription = AppState.addEventListener("change", (state) => {
-      if (state === "active") syncStatus();
+      if (state === "active") {
+        syncStatus();
+        checkOpenCats();
+      }
     });
     const backSub = BackHandler.addEventListener("hardwareBackPress", () => {
       if (screenRef.current === "history") {
@@ -208,6 +220,7 @@ export default function App() {
                 shorts={shorts}
                 onChangeMode={changeMode}
                 onOpenHistory={() => setScreen("history")}
+                onOpenCats={() => setCatsOpen(true)}
               />
             ) : (
               <Onboarding
@@ -232,6 +245,8 @@ export default function App() {
         onKeepBlocking={() => setConfirmGuilt(false)}
         onGiveIn={giveIn}
       />
+
+      <CatGallery visible={catsOpen} onClose={() => setCatsOpen(false)} />
     </View>
   );
 }
@@ -266,6 +281,7 @@ function Dashboard({
   shorts,
   onChangeMode,
   onOpenHistory,
+  onOpenCats,
 }: {
   mode: DoomguardMode;
   seconds: number;
@@ -273,8 +289,8 @@ function Dashboard({
   shorts: number;
   onChangeMode: (mode: DoomguardMode) => void;
   onOpenHistory: () => void;
+  onOpenCats: () => void;
 }) {
-  const [catsOpen, setCatsOpen] = useState(false);
   const minutes = Math.floor(seconds / 60);
   const v = vibe(minutes);
   return (
@@ -336,7 +352,7 @@ function Dashboard({
         </Instrument>
       )}
 
-      <CatsButton onPress={() => setCatsOpen(true)} />
+      <CatsButton onPress={onOpenCats} />
 
       <Pressable
         onPress={onOpenHistory}
@@ -347,8 +363,6 @@ function Dashboard({
       </Pressable>
 
       <ModeSwitch mode={mode} onChangeMode={onChangeMode} />
-
-      <CatGallery visible={catsOpen} onClose={() => setCatsOpen(false)} />
     </View>
   );
 }
