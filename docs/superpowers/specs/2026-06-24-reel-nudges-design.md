@@ -40,12 +40,13 @@ Priority order (highest first). On any evaluation point, the manager shows the *
 | 12 | `count50` | SOFT | crosses 50 | Fifty reels deep. | Fifty swipes today. The cat lost count. |
 | 13 | `count25` | SOFT | crosses 25 | Twenty-five reels. | Twenty-five down. Notice you're doing it? |
 | 14 | `vsyesterday` | SOFT | Daily `seconds` exceeds yesterday's archived total (and yesterday > 0) | Past yesterday already. | You've out-scrolled your whole yesterday — and it's not over. |
-| 15 | `weekly` | SOFT | On reel entry (once/day) | This week so far | `{Xh Ym}` in the feed this week. |
-| 16 | `cleanday` | SOFT | On reel entry (once/day), **and** yesterday's archived `seconds` < 900 | Yesterday was clean. | Barely scrolled. Keep it going today. |
+| 15 | `cleanday` | SOFT | On reel entry (once/day), **and** `0 < yesterdaySeconds < 900` | Yesterday was clean. | Barely scrolled. Keep it going today. |
+| 16 | `weekly` | SOFT | On reel entry (once/day) | This week so far | `{Xh Ym}` in the feed this week. |
 
 Notes:
 - Time-of-day windows are non-overlapping by construction; precedence 1→3 covers the boundaries.
-- `weekly` and `cleanday` both want the first open of the day; precedence + cooldown means only one shows on that open, the other becomes eligible at the next open ≥20 min later (still once/day). `cleanday` outranks `weekly` so a clean streak gets the encouragement.
+- `cleanday` and `weekly` both want the first open of the day; precedence + cooldown means only one shows on that open, the other becomes eligible at the next open ≥20 min later (still once/day). `cleanday` outranks `weekly` so a clean streak gets the encouragement.
+- `cleanday` requires yesterday to have **some** recorded activity (`> 0`) so it never fires on a brand-new install where yesterday is simply absent (archived zero-days don't exist — see the history feature).
 - `weekly` body interpolates the rolling 7-day `seconds` total from history (`fmtDuration`-style "Xh Ym").
 
 ## Architecture
