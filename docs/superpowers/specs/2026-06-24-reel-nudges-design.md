@@ -12,7 +12,8 @@ This is a **Guilt-mode-only** feature (Block mode already bounces the user out o
 ## Behavior Rules (global)
 
 - **Once per day per trigger.** Each trigger key fires at most once between midnight resets.
-- **Global 20-minute cooldown.** No two nudges within 20 minutes of each other, regardless of trigger. A trigger suppressed by cooldown is *not* marked fired — it remains eligible later that day.
+- **Global 20-minute cooldown.** No two nudges within 20 minutes of each other — **except the reel-time `time{N}` milestones, which are cooldown-exempt** so each 3-minute mark fires. A non-exempt trigger suppressed by cooldown is *not* marked fired — it remains eligible later that day.
+- **Reel-time milestones are HARD** (countdown) and fire every 3 minutes of cumulative reel time (`time3`…`time99`), replacing the old 15/30/45/60/90/120 set.
 - **Tap to clear.** The modal covers the reel with a scrim and stays until the user taps a button. It never auto-dismisses.
 - **Two buttons:**
   - **Watch a cat instead** (violet `#7C3AED`, matches `CatsButton`) — always immediately tappable. Sets a flag, launches the Doomguard app to the cat gallery, removes the overlay.
@@ -30,12 +31,7 @@ Priority order (highest first). On any evaluation point, the manager shows the *
 | 2 | `morning` | HARD | Enter reel, local time 05:00–09:59 | Reels before 10am? | You could be doing something better than ruining your morning with this. |
 | 3 | `workhours` | HARD | Enter reel, **weekday** local time 10:00–16:59 | Mid-workday scroll. | The deadline didn't move. The cat's judging you. |
 | 4 | `sitting` | SOFT | 15 min continuous reel time in one session | Come up for air. | Fifteen minutes in the feed without stopping. |
-| 5 | `time120` | SOFT | Daily `seconds` crosses 7200 | Two hours. | Two hours of your day, gone. What are we doing here. |
-| 6 | `time90` | SOFT | crosses 5400 | Ninety minutes. | An hour and a half. The cat has napped twice. |
-| 7 | `time60` | SOFT | crosses 3600 | An hour, gone. | That's a full workout you skipped. |
-| 8 | `time45` | SOFT | crosses 2700 | Forty-five minutes. | Most of a TV episode, spent scrolling. |
-| 9 | `time30` | SOFT | crosses 1800 | Half an hour, gone. | That's a real chunk of your day, in the feed. |
-| 10 | `time15` | SOFT | crosses 900 | Fifteen minutes today. | The scroll is starting to pull. Worth it? |
+| 5 | `time{N}` | **HARD** · **cooldown-exempt** | Daily `seconds` crosses every 3 minutes — N ∈ {3, 6, 9, … 99}. Highest crossed wins. Nothing past 99 min. | `{N} minutes today.` | Rotating cat line (templated), tag `// {N} MIN TODAY` |
 | 11 | `count100` | SOFT | Daily `count`+`shortsCount` crosses 100 | A hundred reels. | You've thumbed past 100 today. Triple digits. |
 | 12 | `count50` | SOFT | crosses 50 | Fifty reels deep. | Fifty swipes today. The cat lost count. |
 | 13 | `count25` | SOFT | crosses 25 | Twenty-five reels. | Twenty-five down. Notice you're doing it? |

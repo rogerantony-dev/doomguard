@@ -21,15 +21,21 @@ export type NudgeState = {
 
 export const COOLDOWN_MS = 20 * 60 * 1000;
 
-/** Highest first. */
-export const TIME_THRESHOLDS: { key: string; at: number }[] = [
-  { key: "time120", at: 7200 },
-  { key: "time90", at: 5400 },
-  { key: "time60", at: 3600 },
-  { key: "time45", at: 2700 },
-  { key: "time30", at: 1800 },
-  { key: "time15", at: 900 },
-];
+/**
+ * Reel-time milestones every 3 minutes, from 3 up to 99 min (cumulative today),
+ * highest first for priority. These are HARD (countdown) and bypass the global
+ * cooldown so each 3-minute mark actually fires. Nothing past 99 min.
+ */
+export const TIME_THRESHOLDS: { key: string; at: number }[] = Array.from(
+  { length: 33 },
+  (_, i) => {
+    const minutes = (33 - i) * 3; // 99, 96, …, 3
+    return { key: `time${minutes}`, at: minutes * 60 };
+  },
+);
+
+/** Reel-time milestones bypass the 20-minute cooldown (they fire every 3 min). */
+const isCooldownExempt = (key: string): boolean => key.startsWith("time");
 
 export const COUNT_THRESHOLDS: { key: string; at: number }[] = [
   { key: "count100", at: 100 },
@@ -66,10 +72,12 @@ function candidates(s: NudgeState): string[] {
 
 export function pickNudge(s: NudgeState): string | null {
   if (s.mode !== "guilt") return null;
-  if (s.nowMs - s.lastNudgeAt < COOLDOWN_MS) return null;
+  const cooling = s.nowMs - s.lastNudgeAt < COOLDOWN_MS;
   const fired = new Set(s.firedToday);
   for (const key of candidates(s)) {
-    if (!fired.has(key)) return key;
+    if (fired.has(key)) continue;
+    if (cooling && !isCooldownExempt(key)) continue;
+    return key;
   }
   return null;
 }

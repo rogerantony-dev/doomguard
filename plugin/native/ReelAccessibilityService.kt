@@ -955,10 +955,9 @@ class ReelAccessibilityService : AccessibilityService() {
     private fun cooldownActive(): Boolean =
         System.currentTimeMillis() - prefs.getLong("lastNudgeAt", 0L) < nudgeCooldownMs
 
-    private val timeThresholds = listOf(
-        "time120" to 7200, "time90" to 5400, "time60" to 3600,
-        "time45" to 2700, "time30" to 1800, "time15" to 900,
-    )
+    // Reel-time milestones every 3 minutes, 99 down to 3 (highest first for
+    // priority). HARD (countdown) and cooldown-exempt — see pickNudgeKey/showNudge.
+    private val timeThresholds = (33 downTo 1).map { "time${it * 3}" to it * 3 * 60 }
     private val countThresholds = listOf("count100" to 100, "count50" to 50, "count25" to 25)
 
     private fun crossed(prev: Int, cur: Int, at: Int): Boolean = prev < at && cur >= at
@@ -972,7 +971,9 @@ class ReelAccessibilityService : AccessibilityService() {
         prevCount: Int, count: Int, prevSitting: Int, sitting: Int,
     ): String? {
         if (currentMode() != "guilt") return null
-        if (cooldownActive()) return null
+        // Reel-time milestones (time*) bypass the cooldown so each 3-min mark fires;
+        // everything else respects it.
+        val cooling = cooldownActive()
 
         val cal = java.util.Calendar.getInstance()
         val hour = cal.get(java.util.Calendar.HOUR_OF_DAY)
@@ -999,7 +1000,7 @@ class ReelAccessibilityService : AccessibilityService() {
             candidates.add("weekly")
         }
 
-        return candidates.firstOrNull { it !in fired }
+        return candidates.firstOrNull { it !in fired && (it.startsWith("time") || !cooling) }
     }
 
     private fun currentCount(): Int {
@@ -1300,7 +1301,7 @@ class ReelAccessibilityService : AccessibilityService() {
         if (nudgeModalShown) return
 
         val (tag, headline, body) = nudgeCopy(key)
-        val hard = key in nudgeHardKeys
+        val hard = key in nudgeHardKeys || key.startsWith("time")
 
         val card = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -1580,18 +1581,29 @@ class ReelAccessibilityService : AccessibilityService() {
         }
     }
 
+    // Rotating bodies for the 3-minute reel-time milestones (templated, not 33 lines).
+    private val timeBodies = listOf(
+        "Still scrolling. The cat's keeping count.",
+        "That's time you won't get back.",
+        "The cat napped. You scrolled.",
+        "Deep in the feed. Worth it?",
+    )
+
     /** (tag, headline, body) for a nudge trigger; tag is null when there's no // label. */
-    private fun nudgeCopy(key: String): Triple<String?, String, String> = when (key) {
+    private fun nudgeCopy(key: String): Triple<String?, String, String> {
+        if (key.startsWith("time")) {
+            val mins = key.removePrefix("time").toIntOrNull() ?: 0
+            val body = timeBodies[(mins / 3) % timeBodies.size]
+            return Triple("// $mins MIN TODAY", "$mins minutes today.", body)
+        }
+        return nudgeCopyFixed(key)
+    }
+
+    private fun nudgeCopyFixed(key: String): Triple<String?, String, String> = when (key) {
         "latenight" -> Triple(null, "It's late. Put it down.", "Nothing good happens in the reels at this hour. Go to sleep.")
         "morning" -> Triple(null, "Reels before 10am?", "You could be doing something better than ruining your morning with this.")
         "workhours" -> Triple(null, "Mid-workday scroll.", "The deadline didn't move. The cat's judging you.")
         "sitting" -> Triple("// 15 MIN STRAIGHT", "Come up for air.", "Fifteen minutes in the feed without stopping.")
-        "time120" -> Triple("// 2 HOURS TODAY", "Two hours.", "Two hours of your day, gone. What are we doing here.")
-        "time90" -> Triple("// 90 MIN TODAY", "Ninety minutes.", "An hour and a half. The cat has napped twice.")
-        "time60" -> Triple("// 1 HOUR TODAY", "An hour, gone.", "That's a full workout you skipped.")
-        "time45" -> Triple("// 45 MIN TODAY", "Forty-five minutes.", "Most of a TV episode, spent scrolling.")
-        "time30" -> Triple("// 30 MIN TODAY", "Half an hour, gone.", "That's a real chunk of your day, in the feed.")
-        "time15" -> Triple("// 15 MIN TODAY", "Fifteen minutes today.", "The scroll is starting to pull. Worth it?")
         "count100" -> Triple("// 100 REELS TODAY", "A hundred reels.", "You've thumbed past 100 today. Triple digits.")
         "count50" -> Triple("// 50 REELS TODAY", "Fifty reels deep.", "Fifty swipes today. The cat lost count.")
         "count25" -> Triple("// 25 REELS TODAY", "Twenty-five reels.", "Twenty-five down. Notice you're doing it?")

@@ -22,14 +22,19 @@ describe("guards", () => {
     expect(pickNudge({ ...base, mode: "block", event: "entry", hour: 2 })).toBeNull();
   });
 
-  it("suppresses everything inside the cooldown window", () => {
-    const s = { ...base, event: "tick" as const, prevSeconds: 899, seconds: 901, nowMs: 100, lastNudgeAt: 100 - (COOLDOWN_MS - 1) };
+  it("suppresses non-time triggers inside the cooldown window", () => {
+    const s = { ...base, event: "tick" as const, prevCount: 24, count: 25, nowMs: 100, lastNudgeAt: 100 - (COOLDOWN_MS - 1) };
     expect(pickNudge(s)).toBeNull();
   });
 
-  it("allows once the cooldown has lapsed", () => {
-    const s = { ...base, event: "tick" as const, prevSeconds: 899, seconds: 901, nowMs: COOLDOWN_MS + 100, lastNudgeAt: 0 };
+  it("lets reel-time milestones bypass the cooldown", () => {
+    const s = { ...base, event: "tick" as const, prevSeconds: 899, seconds: 901, nowMs: 100, lastNudgeAt: 100 - (COOLDOWN_MS - 1) };
     expect(pickNudge(s)).toBe("time15");
+  });
+
+  it("allows a count milestone once the cooldown has lapsed", () => {
+    const s = { ...base, event: "tick" as const, prevCount: 24, count: 25, nowMs: COOLDOWN_MS + 100, lastNudgeAt: 0 };
+    expect(pickNudge(s)).toBe("count25");
   });
 });
 
@@ -50,6 +55,13 @@ describe("time-of-day (entry, HARD)", () => {
 });
 
 describe("threshold crossing (tick)", () => {
+  it("fires time3 at three minutes", () => {
+    expect(pickNudge({ ...base, prevSeconds: 179, seconds: 180 })).toBe("time3");
+  });
+  it("has no reel-time milestone past 99 minutes", () => {
+    // 99 min (5940s) is the last; crossing beyond it triggers nothing.
+    expect(pickNudge({ ...base, prevSeconds: 5941, seconds: 6200 })).toBeNull();
+  });
   it("fires time30 exactly when crossing 1800", () => {
     expect(pickNudge({ ...base, prevSeconds: 1799, seconds: 1800 })).toBe("time30");
   });
