@@ -94,9 +94,10 @@ class ReelAccessibilityService : AccessibilityService() {
     private var lastCoverBounds: Rect? = null
     private val catCoverLayerCount = 3
 
-    // A transparent interceptor over the stories tray: the tray stays visible (and its
-    // story circles tappable), but it swallows drags so you can't SCROLL the feed from
-    // there. A genuine tap is forwarded to the story circle as an accessibility click.
+    // A transparent interceptor over the stories tray: the tray stays visible and usable
+    // (tap a circle, swipe the row sideways) but vertical drags are swallowed so you
+    // can't SCROLL the blocked feed from up here. A tap is forwarded to the story circle
+    // as an accessibility click; a horizontal swipe scrolls the tray's own row.
     private var trayCover: View? = null
     private var trayCoverActive = false
     private var trayDownX = 0f
@@ -152,12 +153,19 @@ class ReelAccessibilityService : AccessibilityService() {
     private var lastWidgetUpdateAt = 0L
 
     // Time-on-reels meter: a 1s ticker accrues real wall-clock seconds while a reel is
-    // up, so the pill shows measured minutes. Pauses when the screen is off; stopped by
-    // the event handler the moment you leave a reel.
+    // up, so the pill shows measured minutes. Tears down when the screen is off; stopped
+    // by the event handler the moment you leave a reel.
     private var reelTimerRunning = false
     private val reelTimeTicker = object : Runnable {
         override fun run() {
-            if (isScreenOn()) addSeconds(1)
+            // Screen off → pull the pill, don't just pause. The pill's watchdog
+            // (pillTicker) also stops on screen-off, and no accessibility event fires
+            // outside Instagram/YouTube (the service is package-filtered) — so if this
+            // ticker kept re-rendering instead, the pill would survive the lock and
+            // reappear over the home screen / another app on unlock, with nothing left
+            // to clear it. If still on a reel after unlock, the next IG/YT event rebuilds.
+            if (!isScreenOn()) { hideOverlay(); return }
+            addSeconds(1)
             render()
             mainHandler.postDelayed(this, 1000L)
         }
@@ -1518,11 +1526,27 @@ class ReelAccessibilityService : AccessibilityService() {
                         true
                     }
                     MotionEvent.ACTION_UP -> {
-                        val moved = Math.hypot(
-                            (e.rawX - trayDownX).toDouble(), (e.rawY - trayDownY).toDouble()
-                        )
-                        if (moved < dp(16) && System.currentTimeMillis() - trayDownAt < 350L) {
+                        // Classify the gesture on release. The cover eats EVERY gesture
+                        // (so a vertical drag can never scroll the blocked feed from up
+                        // here), then replays only the story-tray-safe ones via
+                        // accessibility actions — no synthetic touch, so the replay can't
+                        // re-enter this same overlay:
+                        //   - a near-stationary touch → tap → forward a click to the circle
+                        //   - a mostly-horizontal drag → scroll the stories row itself
+                        //   - anything else (a vertical drag) → swallow it
+                        val dx = e.rawX - trayDownX
+                        val dy = e.rawY - trayDownY
+                        val dist = Math.hypot(dx.toDouble(), dy.toDouble())
+                        val held = System.currentTimeMillis() - trayDownAt
+                        // Looser than before (was 16dp/350ms): some users' taps drift a
+                        // little or linger, and were being eaten as drags — so the story
+                        // never opened.
+                        if (dist < dp(24) && held < 600L) {
                             clickNodeAt(e.rawX.toInt(), e.rawY.toInt())
+                        } else if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > dp(24)) {
+                            // Swiping the finger LEFT (dx < 0) reveals later stories →
+                            // scroll the row forward; RIGHT scrolls it back.
+                            scrollTrayAt(trayDownX.toInt(), trayDownY.toInt(), forward = dx < 0)
                         }
                         true // always consume so a drag never scrolls the feed
                     }
@@ -1566,6 +1590,34 @@ class ReelAccessibilityService : AccessibilityService() {
             node.getChild(i)?.let { deepestClickableAt(it, x, y)?.let { hit -> return hit } }
         }
         return if (node.isClickable) node else null
+    }
+
+    /**
+     * Scroll the stories row under (x, y) by one step. Drives the tray's own
+     * scrollable node through accessibility actions rather than synthesizing a swipe,
+     * so it can't bounce off this overlay — the cover eats the real drag, this nudges
+     * the underlying RecyclerView a page in the matching direction.
+     */
+    private fun scrollTrayAt(x: Int, y: Int, forward: Boolean) {
+        val root = rootInActiveWindow ?: return
+        val node = deepestScrollableAt(root, x, y) ?: return
+        val action = if (forward) {
+            AccessibilityNodeInfo.ACTION_SCROLL_FORWARD
+        } else {
+            AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD
+        }
+        runCatching { node.performAction(action) }
+    }
+
+    /** Deepest visible scrollable node whose bounds contain (x, y), or null. */
+    private fun deepestScrollableAt(node: AccessibilityNodeInfo, x: Int, y: Int): AccessibilityNodeInfo? {
+        if (!node.isVisibleToUser) return null
+        val b = Rect().also { node.getBoundsInScreen(it) }
+        if (!b.contains(x, y)) return null
+        for (i in 0 until node.childCount) {
+            node.getChild(i)?.let { deepestScrollableAt(it, x, y)?.let { hit -> return hit } }
+        }
+        return if (node.isScrollable) node else null
     }
 
     /** Resolve a bundled cat drawable (`doomguard_cat_1..N`) by index, 0 if missing. */
