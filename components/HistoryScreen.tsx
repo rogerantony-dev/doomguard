@@ -130,7 +130,7 @@ export function HistoryScreen({ onBack }: { onBack: () => void }) {
               <View className="items-center gap-3 rounded-3xl bg-panel px-5 py-12">
                 <Ionicons name="bar-chart-outline" size={36} color={C.dim} />
                 <Text className="text-center text-[15px] leading-6 text-ash">
-                  No history yet — your first day is being logged.{"\n"}Check back tomorrow.
+                  No history yet. Your first day is being logged.{"\n"}Check back tomorrow.
                 </Text>
               </View>
             ) : (
@@ -164,7 +164,7 @@ export function HistoryScreen({ onBack }: { onBack: () => void }) {
                     </View>
                   ) : (
                     <Text className="text-center text-[12px] text-dim">
-                      Reels + shorts combined — they share one timer.
+                      Reels + shorts combined. They share one timer.
                     </Text>
                   )}
                 </View>
@@ -172,7 +172,7 @@ export function HistoryScreen({ onBack }: { onBack: () => void }) {
             )}
 
             <Text className="mt-4 border-t border-bone/10 pt-5 text-[12.5px] leading-5 text-dim">
-              History starts the day you updated the app — earlier days weren't recorded. It fills
+              History starts the day you updated the app. Earlier days weren't recorded. It fills
               in one day at a time and lives only on this device.
             </Text>
           </View>

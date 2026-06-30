@@ -525,8 +525,8 @@ function ModeSwitch({
       </View>
       <Text className="px-0.5 text-[13.5px] leading-snug text-ash">
         {mode === "guilt"
-          ? "Guilt — watch all you want, the clock keeps time."
-          : "Block — Doomguard backs you out of every reel and short."}
+          ? "Guilt. Watch all you want, the clock keeps time."
+          : "Block. Doomguard backs you out of every reel and short."}
       </Text>
     </View>
   );

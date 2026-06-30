@@ -159,7 +159,7 @@ const limitSheet = `
 <div class="scrim">
   <div class="sheet">
     <div class="sheettitle">Daily limit</div>
-    <div class="sheetsub">Cross it and the wall — and the pill and widget — turn red.</div>
+    <div class="sheetsub">Cross it and the wall, pill, and widget turn red.</div>
     <div class="optgrid">
       ${LIMITS.map((o) => `<div class="opt2 ${o.v === BUDGET ? "sel" : ""}">${o.l}</div>`).join("")}
     </div>

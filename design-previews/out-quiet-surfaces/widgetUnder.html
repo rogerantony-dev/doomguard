@@ -1,0 +1,63 @@
+<!doctype html><html><head>
+<meta charset="utf-8" />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#242422;font-family:"Inter",system-ui,sans-serif;color:#F2F1EC;-webkit-font-smoothing:antialiased}
+.num{font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.phone{width:390px;height:844px;border-radius:48px;overflow:hidden;position:relative;background:#0D0D0C;
+  box-shadow:0 30px 70px rgba(40,40,36,.3),0 0 0 10px #16160f,0 0 0 12px #2c2c25}
+.cap{width:390px;text-align:center;margin-top:16px;color:#b9b9b2;font:600 12.5px Inter;letter-spacing:.13em;text-transform:uppercase}
+
+/* a reel playing underneath */
+.reel{position:absolute;inset:0;background:radial-gradient(120% 80% at 30% 18%,#2b2740 0%,#0c0c10 62%),linear-gradient(180deg,#161620,#05050a)}
+.reel::after{content:"reel";position:absolute;left:22px;bottom:26px;font:700 12px Inter;letter-spacing:.2em;text-transform:uppercase;color:#3a3a44}
+
+/* floating pill */
+.pillwrap{position:absolute;top:54px;left:0;right:0;display:flex;justify-content:center}
+.pill{display:inline-flex;align-items:center;gap:11px;background:rgba(26,26,24,.95);
+  border:1px solid rgba(242,241,236,0.10);border-radius:22px;padding:10px 18px 10px 14px;
+  box-shadow:0 8px 22px rgba(0,0,0,.45)}
+.pill .ring{width:26px;height:26px;display:block}
+.pill .lbl{font:700 15px Inter;letter-spacing:.01em}
+
+/* home screen for the widget */
+.home{position:absolute;inset:0;background:
+  radial-gradient(90% 60% at 50% 0%, #20202a 0%, transparent 55%),
+  linear-gradient(180deg,#121218 0%,#0a0a0e 100%)}
+.clock{position:absolute;top:84px;left:0;right:0;text-align:center;color:#e9e9ee}
+.clock .t{font:300 64px Inter;letter-spacing:-.02em}
+.clock .d{font:500 15px Inter;color:#b8b8c2;margin-top:2px}
+.widgetwrap{position:absolute;top:250px;left:24px;right:24px}
+.widget{background:linear-gradient(180deg,#1A1A18,#141413);border:1px solid rgba(242,241,236,0.10);border-radius:26px;padding:20px}
+.widget .brand{font:700 11px Inter;letter-spacing:.16em;color:#9A9A92}
+.widget .timerow{display:flex;align-items:baseline;gap:9px;margin-top:8px}
+.widget .time{font:700 36px Inter}
+.widget .wt{font:400 13px Inter;color:#9A9A92}
+.widget .lim{font:700 11px Inter;letter-spacing:.04em;margin-top:6px}
+.widget .counts{display:flex;gap:18px;margin-top:14px;font:400 14px Inter;color:#9A9A92}
+.dock{position:absolute;bottom:38px;left:0;right:0;display:flex;justify-content:center;gap:22px}
+.dock i{width:54px;height:54px;border-radius:15px;background:rgba(255,255,255,.08);display:block}
+
+/* nudge popup */
+.scrim{position:absolute;inset:0;background:rgba(8,8,10,.66);display:flex;align-items:center;justify-content:center;padding:24px}
+.card{width:100%;background:#1A1A18;border:1px solid rgba(242,241,236,0.10);border-radius:26px;padding:20px;
+  box-shadow:0 30px 70px rgba(0,0,0,.5)}
+.card .cat{width:100%;height:150px;object-fit:cover;border-radius:16px;display:block}
+.card .tag{display:inline-block;margin-top:16px;font:600 10.5px Inter;letter-spacing:.1em;text-transform:uppercase;
+  color:#E0913C;background:rgba(224,145,60,.14);border-radius:999px;padding:5px 11px}
+.card h4{font:600 24px Inter;letter-spacing:-.02em;margin-top:12px}
+.card p{font:400 14.5px/1.5 Inter;color:#9A9A92;margin-top:8px}
+.card .btn{display:block;text-align:center;border-radius:15px;padding:15px;margin-top:14px;font:600 15px Inter}
+.card .btn.primary{background:#F2F1EC;color:#0D0D0C}
+.card .btn.ghost{color:#62625B;font-weight:500;padding:10px}
+</style></head><body style="display:flex;justify-content:center;padding:40px"><div class="phone"><div class="home">
+    <div class="clock"><div class="t num">9:41</div><div class="d">Monday, June 30</div></div>
+    <div class="widgetwrap"><div class="widget">
+      <div class="brand">DOOMGUARD</div>
+      <div class="timerow"><span class="time num" style="color:#E0913C">23m</span><span class="wt">wasted today</span></div>
+      <div class="lim" style="color:#E0913C">37 min left of your 60-min limit</div>
+      <div class="counts"><span>14 reels</span><span>7 shorts</span></div>
+    </div></div>
+    <div class="dock"><i></i><i></i><i></i><i></i></div>
+  </div></div></body></html>
