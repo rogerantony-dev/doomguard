@@ -1325,14 +1325,19 @@ class ReelAccessibilityService : AccessibilityService() {
 
         if (tag != null) {
             card.addView(TextView(this).apply {
-                text = tag
-                setTextColor(Color.parseColor("#19E3FF"))
-                setTextSize(TypedValue.COMPLEX_UNIT_SP, 10f)
-                typeface = Typeface.create(Typeface.MONOSPACE, Typeface.BOLD)
-                letterSpacing = 0.15f
+                text = tag.removePrefix("// ")
+                setTextColor(Color.parseColor("#E0913C"))
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 10.5f)
+                typeface = Typeface.create(Typeface.DEFAULT_BOLD, Typeface.BOLD)
+                letterSpacing = 0.08f
+                setPadding(dp(11), dp(5), dp(11), dp(5))
+                background = GradientDrawable().apply {
+                    cornerRadius = dp(999).toFloat()
+                    setColor(Color.parseColor("#24E0913C")) // ~14% amber tint
+                }
             }, LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply { bottomMargin = dp(8) })
+            ).apply { bottomMargin = dp(12) })
         }
 
         // Random cat photo.
@@ -1352,8 +1357,8 @@ class ReelAccessibilityService : AccessibilityService() {
 
         card.addView(TextView(this).apply {
             text = headline
-            setTextColor(Color.parseColor("#F4F1EA"))
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 18f)
+            setTextColor(Color.parseColor("#F2F1EC"))
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 22f)
             typeface = Typeface.create(Typeface.DEFAULT_BOLD, Typeface.BOLD)
         }, LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT
@@ -1361,43 +1366,33 @@ class ReelAccessibilityService : AccessibilityService() {
 
         card.addView(TextView(this).apply {
             text = body
-            setTextColor(Color.parseColor("#9C9CA6"))
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
-            setLineSpacing(dp(2).toFloat(), 1f)
+            setTextColor(Color.parseColor("#9A9A92"))
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
+            setLineSpacing(dp(3).toFloat(), 1f)
         }, LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
-        ).apply { topMargin = dp(5) })
-
-        // Amber hazard divider (simplified solid bar of the app's hazard tape).
-        card.addView(View(this).apply {
-            background = GradientDrawable().apply {
-                cornerRadius = dp(4).toFloat()
-                setColor(Color.parseColor("#F5A524"))
-            }
-        }, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(6)).apply {
-            topMargin = dp(14); bottomMargin = dp(12)
-        })
+        ).apply { topMargin = dp(8) })
 
         val catBtn = TextView(this).apply {
             text = "Watch a cat instead"
             gravity = Gravity.CENTER
-            setTextColor(Color.WHITE)
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
+            setTextColor(Color.parseColor("#0D0D0C"))
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 14.5f)
             typeface = Typeface.create(Typeface.DEFAULT_BOLD, Typeface.BOLD)
-            setPadding(0, dp(12), 0, dp(12))
-            background = nudgeButtonBackground("#7C3AED")
+            setPadding(0, dp(14), 0, dp(14))
+            background = nudgeButtonBackground("#F2F1EC")
             setOnClickListener { hideNudgeModal(); launchCatGallery() }
         }
         card.addView(catBtn, LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
-        ))
+        ).apply { topMargin = dp(18) })
 
         val keepBtn = TextView(this).apply {
             gravity = Gravity.CENTER
-            setTextColor(Color.parseColor("#5C5C66"))
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-            setPadding(0, dp(10), 0, dp(6))
+            setTextColor(Color.parseColor("#62625B"))
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
+            typeface = Typeface.DEFAULT
+            setPadding(0, dp(12), 0, dp(6))
             text = "Keep scrolling"
         }
         card.addView(keepBtn, LinearLayout.LayoutParams(
@@ -1478,15 +1473,15 @@ class ReelAccessibilityService : AccessibilityService() {
 
     private fun nudgeCardBackground(): GradientDrawable =
         GradientDrawable().apply {
-            setColor(Color.parseColor("#141419"))
-            cornerRadius = dp(20).toFloat()
-            setStroke(dp(1), Color.parseColor("#1AF4F1EA"))
+            setColor(Color.parseColor("#1A1A18"))
+            cornerRadius = dp(26).toFloat()
+            setStroke(dp(1), Color.parseColor("#1AF2F1EC"))
         }
 
     private fun nudgeButtonBackground(hex: String): GradientDrawable =
         GradientDrawable().apply {
             setColor(Color.parseColor(hex))
-            cornerRadius = dp(11).toFloat()
+            cornerRadius = dp(15).toFloat()
         }
 
     // --- Stories-tray scroll guard --------------------------------------------
