@@ -17,10 +17,11 @@ import * as IntentLauncher from "expo-intent-launcher";
 
 import { CatGallery } from "./components/CatGallery";
 import { HistoryScreen } from "./components/HistoryScreen";
-import { Brand, C, Kicker, Track } from "./components/console";
+import { Brand, C, Kicker } from "./components/console";
 import {
   consumeOpenCats,
   getStatus,
+  setLimit,
   setMode,
   type DoomguardMode,
   type DoomguardStatus,
@@ -81,6 +82,7 @@ export default function App() {
   const [confirmGuilt, setConfirmGuilt] = useState(false);
   const [screen, setScreen] = useState<"home" | "history">("home");
   const [catsOpen, setCatsOpen] = useState(false);
+  const [limitPickerOpen, setLimitPickerOpen] = useState(false);
   const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Read the latest screen from a ref so the back-handler subscribes once
   // (mount-only) rather than re-subscribing on every navigation.
@@ -146,6 +148,7 @@ export default function App() {
   const seconds = status?.todaySeconds ?? 0;
   const count = status?.todayCount ?? 0;
   const shorts = status?.todayShorts ?? 0;
+  const limit = status?.limitMinutes ?? 60;
 
   const changeMode = useCallback(
     (next: DoomguardMode) => {
@@ -167,6 +170,15 @@ export default function App() {
     refresh();
   }, [refresh]);
 
+  const changeLimit = useCallback(
+    (minutes: number) => {
+      setLimit(minutes);
+      setLimitPickerOpen(false);
+      refresh();
+    },
+    [refresh]
+  );
+
   if (screen === "history") {
     return <HistoryScreen onBack={() => setScreen("home")} />;
   }
@@ -177,7 +189,12 @@ export default function App() {
         <StatusBar style="light" />
         <ScrollView className="flex-1" contentContainerStyle={{ flexGrow: 1 }}>
           <View className="grow px-6 pb-7 pt-4">
-            <Brand on={allReady} />
+            <View className="flex-row items-center justify-between">
+              <Brand on={allReady} />
+              {allReady && Platform.OS === "android" ? (
+                <LimitChip value={limit} onPress={() => setLimitPickerOpen(true)} />
+              ) : null}
+            </View>
 
             {Platform.OS !== "android" ? (
               <View className="mt-10 rounded-3xl bg-panel p-6">
@@ -192,6 +209,7 @@ export default function App() {
                 seconds={seconds}
                 count={count}
                 shorts={shorts}
+                limit={limit}
                 onChangeMode={changeMode}
                 onOpenHistory={() => setScreen("history")}
                 onOpenCats={() => setCatsOpen(true)}
@@ -213,6 +231,13 @@ export default function App() {
       />
 
       <CatGallery visible={catsOpen} onClose={() => setCatsOpen(false)} />
+
+      <LimitPicker
+        visible={limitPickerOpen}
+        value={limit}
+        onPick={changeLimit}
+        onClose={() => setLimitPickerOpen(false)}
+      />
     </View>
   );
 }
@@ -225,16 +250,24 @@ const PRIVACY = (
   </Text>
 );
 
-/** Daily limit, in minutes — the size of the fill container. */
-const BUDGET = 60;
 const WASTE = "#E0913C"; // time burned (guilt)
 const OVER = "#D2542F"; // past the limit
+const LIMIT_OPTIONS = [15, 30, 45, 60, 90, 120];
+
+/** "45m" / "1h" / "1h 30m" from a minute count. */
+function fmtLimit(min: number): string {
+  if (min < 60) return `${min}m`;
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  return m === 0 ? `${h}h` : `${h}h ${m}m`;
+}
 
 function Dashboard({
   mode,
   seconds,
   count,
   shorts,
+  limit,
   onChangeMode,
   onOpenHistory,
   onOpenCats,
@@ -243,6 +276,7 @@ function Dashboard({
   seconds: number;
   count: number;
   shorts: number;
+  limit: number;
   onChangeMode: (mode: DoomguardMode) => void;
   onOpenHistory: () => void;
   onOpenCats: () => void;
@@ -252,7 +286,7 @@ function Dashboard({
   return (
     <View className="grow">
       {mode === "guilt" ? (
-        <GuiltHero minutes={minutes} count={count} shorts={shorts} />
+        <GuiltHero minutes={minutes} count={count} shorts={shorts} limit={limit} />
       ) : (
         <BlockHero count={count} />
       )}
@@ -273,16 +307,18 @@ function GuiltHero({
   minutes,
   count,
   shorts,
+  limit,
 }: {
   minutes: number;
   count: number;
   shorts: number;
+  limit: number;
 }) {
-  const over = minutes > BUDGET;
+  const over = minutes > limit;
   const numColor = over ? OVER : WASTE;
   const limitLabel = over
-    ? `${minutes - BUDGET} min over your ${BUDGET}-min limit`
-    : `${BUDGET - minutes} min left of your ${BUDGET}-min limit`;
+    ? `${minutes - limit} min over your ${limit}-min limit`
+    : `${limit - minutes} min left of your ${limit}-min limit`;
   return (
     <View className="mt-11">
       <View className="flex-row items-baseline">
@@ -296,7 +332,7 @@ function GuiltHero({
           min wasted today
         </Text>
       </View>
-      <WasteWall minutes={minutes} />
+      <WasteWall minutes={minutes} limit={limit} />
       <Kicker style={{ marginTop: 12, color: numColor, letterSpacing: 0.6 }}>
         {limitLabel}
       </Kicker>
@@ -339,11 +375,11 @@ function BlockHero({ count }: { count: number }) {
 }
 
 /** The wall of wasted minutes: a budget container that fills amber, then overflows red. */
-function WasteWall({ minutes }: { minutes: number }) {
-  const over = Math.max(0, minutes - BUDGET);
+function WasteWall({ minutes, limit }: { minutes: number; limit: number }) {
+  const over = Math.max(0, minutes - limit);
   return (
     <View style={styles.wall}>
-      {Array.from({ length: BUDGET }).map((_, i) => (
+      {Array.from({ length: limit }).map((_, i) => (
         <View key={`b${i}`} style={[styles.cell, i < minutes ? styles.cellFill : styles.cellEmpty]} />
       ))}
       {Array.from({ length: over }).map((_, i) => (
@@ -390,6 +426,68 @@ function TrayButton({
       <Ionicons name={icon} size={18} color={C.bone} />
       <Text className="text-[15px] font-semibold text-bone">{label}</Text>
     </Pressable>
+  );
+}
+
+function LimitChip({ value, onPress }: { value: number; onPress: () => void }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      className="flex-row items-center gap-1.5 rounded-full bg-panel px-3.5 py-2 active:opacity-80"
+    >
+      <Text className="text-[12.5px] font-medium text-ash">
+        Limit <Text className="font-semibold text-bone">{fmtLimit(value)}</Text>
+      </Text>
+      <Ionicons name="chevron-down" size={13} color={C.dim} />
+    </Pressable>
+  );
+}
+
+function LimitPicker({
+  visible,
+  value,
+  onPick,
+  onClose,
+}: {
+  visible: boolean;
+  value: number;
+  onPick: (minutes: number) => void;
+  onClose: () => void;
+}) {
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <Pressable className="flex-1 justify-end bg-black/60 p-4" onPress={onClose}>
+        <Pressable onPress={() => {}} className="gap-1.5 rounded-[28px] bg-panel p-6">
+          <Text className="text-[21px] font-semibold text-bone">Daily limit</Text>
+          <Text className="text-[14px] leading-snug text-ash">
+            Cross it and the wall, pill, and widget turn red.
+          </Text>
+          <View className="mt-4 flex-row flex-wrap justify-between gap-y-2.5">
+            {LIMIT_OPTIONS.map((m) => {
+              const sel = m === value;
+              return (
+                <Pressable
+                  key={m}
+                  onPress={() => onPick(m)}
+                  className="w-[31%] items-center rounded-2xl border py-4 active:opacity-80"
+                  style={{
+                    backgroundColor: sel ? "rgba(224,145,60,0.14)" : "transparent",
+                    borderColor: sel ? WASTE : "rgba(242,241,236,0.10)",
+                  }}
+                >
+                  <Text
+                    className="text-[16px] font-semibold"
+                    style={{ color: sel ? WASTE : C.bone }}
+                  >
+                    {fmtLimit(m)}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </Pressable>
+      </Pressable>
+    </Modal>
   );
 }
 

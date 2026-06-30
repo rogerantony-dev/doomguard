@@ -64,13 +64,14 @@ class DoomguardWidgetProvider : AppWidgetProvider() {
             val views = RemoteViews(context.packageName, R.layout.doomguard_widget)
             views.setTextViewText(R.id.widget_time, formatTime(seconds))
 
-            // Budget line + colour: amber while under the daily limit, red once over.
+            // Budget line + colour: amber while under the user-set limit, red once over.
+            val budget = prefs.getInt("limitMinutes", BUDGET_MIN).coerceIn(5, 240)
             val minutes = seconds / 60
-            val over = minutes > BUDGET_MIN
+            val over = minutes > budget
             val color = if (over) 0xFFD2542F.toInt() else 0xFFE0913C.toInt()
             val limit =
-                if (over) "${minutes - BUDGET_MIN} min over your ${BUDGET_MIN}-min limit"
-                else "${BUDGET_MIN - minutes} min left of your ${BUDGET_MIN}-min limit"
+                if (over) "${minutes - budget} min over your ${budget}-min limit"
+                else "${budget - minutes} min left of your ${budget}-min limit"
             views.setTextViewText(R.id.widget_limit, limit)
             views.setTextColor(R.id.widget_time, color)
             views.setTextColor(R.id.widget_limit, color)

@@ -29,6 +29,7 @@ class DoomguardnativeModule : Module() {
         "todayShorts" to todayShorts(context),
         "todaySeconds" to todaySeconds(context),
         "mode" to currentMode(context),
+        "limitMinutes" to limitMinutes(context),
       )
     }
 
@@ -36,6 +37,11 @@ class DoomguardnativeModule : Module() {
       val context = appContext.reactContext?.applicationContext ?: return@Function
       val normalized = if (mode == "block") "block" else "guilt"
       prefs(context).edit().putString("mode", normalized).apply()
+    }
+
+    Function("setLimit") { minutes: Int ->
+      val context = appContext.reactContext?.applicationContext ?: return@Function
+      prefs(context).edit().putInt("limitMinutes", minutes.coerceIn(5, 240)).apply()
     }
 
     Function("getHistory") {
@@ -61,6 +67,7 @@ class DoomguardnativeModule : Module() {
     "todayShorts" to 0,
     "todaySeconds" to 0,
     "mode" to "guilt",
+    "limitMinutes" to 60,
   )
 
   private fun prefs(context: Context) =
@@ -68,6 +75,10 @@ class DoomguardnativeModule : Module() {
 
   private fun currentMode(context: Context): String =
     prefs(context).getString("mode", "guilt") ?: "guilt"
+
+  /** User-set daily limit, in minutes (default 60). */
+  private fun limitMinutes(context: Context): Int =
+    prefs(context).getInt("limitMinutes", 60).coerceIn(5, 240)
 
   private fun serviceId(context: Context): String {
     val pkg = context.packageName

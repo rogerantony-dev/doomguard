@@ -61,6 +61,24 @@ body{background:#242422;font-family:"Inter",system-ui,sans-serif;color:${T.ink};
 .tray{margin-top:auto;display:flex;gap:11px;padding-top:22px}
 .tray .b{flex:1;display:flex;align-items:center;justify-content:center;gap:9px;background:${T.surface};border-radius:15px;padding:16px;font:600 15px Inter;color:${T.ink}}
 
+/* top row + limit chip */
+.toprow{display:flex;align-items:center;justify-content:space-between}
+.limitchip{display:flex;align-items:center;gap:6px;background:${T.surface};border-radius:999px;
+  padding:8px 13px;font:600 12.5px Inter;color:${T.ink2}}
+.limitchip b{color:${T.ink};font-weight:600}
+.limitchip .cv{font-size:11px;color:${T.faint}}
+
+/* bottom sheet picker */
+.scrim{position:absolute;inset:0;background:rgba(8,8,10,.6);display:flex;align-items:flex-end;padding:14px}
+.sheet{width:100%;background:${T.surface};border:1px solid ${T.hair};border-radius:26px;padding:24px}
+.sheettitle{font:600 21px Inter;letter-spacing:-.01em}
+.sheetsub{font:400 14px Inter;color:${T.ink2};margin-top:7px}
+.optgrid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-top:20px}
+.opt2{display:flex;align-items:center;justify-content:center;background:${T.bg};border:1px solid ${T.hair};
+  border-radius:14px;padding:16px 0;font:600 16px Inter;color:${T.ink}}
+.opt2.sel{background:rgba(224,145,60,0.14);border-color:${T.waste};color:${T.waste}}
+.sheetdone{margin-top:18px;text-align:center;background:${T.ink};color:${T.bg};border-radius:15px;padding:15px;font:600 15px Inter}
+
 /* block / safe */
 .shieldc{width:72px;height:72px;border-radius:50%;background:${T.greenSoft};display:flex;align-items:center;justify-content:center;margin-top:70px}
 .safetitle{font:600 32px Inter;letter-spacing:-.02em;margin-top:24px}
@@ -92,8 +110,11 @@ function guilt(minutes, reels, shorts, caption) {
     ? `${minutes - BUDGET} min over your ${BUDGET}-min limit`
     : `${BUDGET - minutes} min left of your ${BUDGET}-min limit`;
   return `<div class="scr">
-    <div class="brand"><span class="dot"></span>Doomguard</div>
-    <div style="margin-top:46px">
+    <div class="toprow">
+      <div class="brand"><span class="dot"></span>Doomguard</div>
+      <div class="limitchip">Limit <b>${BUDGET}m</b> <span class="cv">▾</span></div>
+    </div>
+    <div style="margin-top:40px">
       <div class="bignum num" style="color:${numColor}">${minutes}<span class="u">min wasted today</span></div>
     </div>
     ${wall(minutes)}
@@ -124,13 +145,39 @@ const block = `<div class="scr">
   </div>
 </div>`;
 
+const LIMITS = [
+  { v: 15, l: "15m" }, { v: 30, l: "30m" }, { v: 45, l: "45m" },
+  { v: 60, l: "1h" }, { v: 90, l: "1h 30" }, { v: 120, l: "2h" },
+];
+const limitSheet = `
+<div class="scr" style="filter:blur(2px);opacity:.45">
+  <div class="toprow"><div class="brand"><span class="dot"></span>Doomguard</div>
+    <div class="limitchip">Limit <b>${BUDGET}m</b> <span class="cv">▾</span></div></div>
+  <div style="margin-top:40px"><div class="bignum num" style="color:${T.waste}">23<span class="u">min wasted today</span></div></div>
+  ${wall(23)}
+</div>
+<div class="scrim">
+  <div class="sheet">
+    <div class="sheettitle">Daily limit</div>
+    <div class="sheetsub">Cross it and the wall — and the pill and widget — turn red.</div>
+    <div class="optgrid">
+      ${LIMITS.map((o) => `<div class="opt2 ${o.v === BUDGET ? "sel" : ""}">${o.l}</div>`).join("")}
+    </div>
+    <div class="sheetdone">Done</div>
+  </div>
+</div>`;
+
 const screens = {
   guiltLight: guilt(23, 14, 7, "Time's slipping."),
   guiltHeavy: guilt(95, 61, 28, "Way past your limit."),
   block,
+  limitSheet,
 };
-const order = ["guiltLight", "guiltHeavy", "block"];
-const caps = { guiltLight: "Guilt — 23 min", guiltHeavy: "Guilt — 95 min", block: "Block mode" };
+const order = ["guiltLight", "guiltHeavy", "limitSheet", "block"];
+const caps = {
+  guiltLight: "Guilt — 23 min", guiltHeavy: "Guilt — 95 min",
+  limitSheet: "Set daily limit", block: "Block mode",
+};
 
 for (const n of order) {
   fs.writeFileSync(path.join(OUT, `${n}.html`),

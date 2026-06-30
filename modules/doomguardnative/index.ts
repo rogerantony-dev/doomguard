@@ -17,6 +17,8 @@ export type DoomguardStatus = {
   todaySeconds: number;
   /** Current behavior: "guilt" counts reels, "block" bounces you out. */
   mode: DoomguardMode;
+  /** User-set daily limit, in minutes — when crossed, surfaces turn red. */
+  limitMinutes: number;
 };
 
 export type DoomguardDay = {
@@ -33,6 +35,7 @@ export type DoomguardDay = {
 type NativeModule = {
   getStatus(): DoomguardStatus;
   setMode(mode: DoomguardMode): void;
+  setLimit(minutes: number): void;
   getHistory(): DoomguardDay[];
   consumeOpenCats(): boolean;
 };
@@ -59,6 +62,15 @@ export function setMode(mode: DoomguardMode): void {
   if (!nativeModule) return;
   try {
     nativeModule.setMode(mode);
+  } catch {
+    // no-op if the native module isn't available
+  }
+}
+
+export function setLimit(minutes: number): void {
+  if (!nativeModule) return;
+  try {
+    nativeModule.setLimit(minutes);
   } catch {
     // no-op if the native module isn't available
   }

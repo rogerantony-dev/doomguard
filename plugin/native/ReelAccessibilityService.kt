@@ -58,8 +58,8 @@ class ReelAccessibilityService : AccessibilityService() {
     // to true only for a tuning build — it's noisy and not for real use.
     private val debug = false
 
-    /** Daily limit, in minutes — mirrors BUDGET on the dashboard + widget. */
-    private val budgetMinutes = 60
+    /** Daily limit in minutes — user-set, read live from prefs (mirrors dashboard + widget). */
+    private fun limitMinutes(): Int = prefs.getInt("limitMinutes", 60).coerceIn(5, 240)
 
     private var windowManager: WindowManager? = null
     private var pill: View? = null
@@ -1094,7 +1094,7 @@ class ReelAccessibilityService : AccessibilityService() {
         if (!Settings.canDrawOverlays(this)) return
 
         if (!overlayShown) buildPill()
-        dialView?.setProgress(currentSeconds() / (budgetMinutes * 60f))
+        dialView?.setProgress(currentSeconds() / (limitMinutes() * 60f))
         pillLabel?.setTextColor(Color.WHITE)
         pillLabel?.text = debugText ?: pillText(currentSeconds())
     }
