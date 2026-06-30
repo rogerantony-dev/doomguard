@@ -6,6 +6,7 @@ import {
   Platform,
   Pressable,
   ScrollView,
+  StyleSheet,
   Text,
   View,
 } from "react-native";
@@ -224,6 +225,11 @@ const PRIVACY = (
   </Text>
 );
 
+/** Daily limit, in minutes — the size of the fill container. */
+const BUDGET = 60;
+const WASTE = "#E0913C"; // time burned (guilt)
+const OVER = "#D2542F"; // past the limit
+
 function Dashboard({
   mode,
   seconds,
@@ -242,100 +248,158 @@ function Dashboard({
   onOpenCats: () => void;
 }) {
   const minutes = Math.floor(seconds / 60);
-  const v = vibe(minutes);
 
   return (
     <View className="grow">
       {mode === "guilt" ? (
-        <View className="mt-12">
-          <Kicker>Time wasted · today</Kicker>
-          <View className="mt-4 flex-row items-end">
-            <Text
-              className="font-semibold text-bone"
-              style={{ fontSize: 84, lineHeight: 84, letterSpacing: -3, fontVariant: ["tabular-nums"] }}
-            >
-              {minutes}
-            </Text>
-            <Text className="mb-3 ml-2 font-medium text-dim" style={{ fontSize: 26 }}>
-              min
-            </Text>
-          </View>
-          <Text className="mt-3 text-[16px] text-ash">doomscrolling so far</Text>
-          <Counts count={count} shorts={shorts} />
-          <View className="mt-8">
-            <Track value={rednessForMinutes(minutes)} />
-          </View>
-          <View className="mt-7">
-            <Text className="text-[20px] font-semibold text-bone">{v.title}</Text>
-            <Text className="mt-1.5 text-[15px] leading-snug text-ash">{v.sub}</Text>
-          </View>
-        </View>
+        <GuiltHero minutes={minutes} count={count} shorts={shorts} />
       ) : (
-        <View className="mt-14">
-          <View
-            className="h-16 w-16 items-center justify-center rounded-full"
-            style={{ backgroundColor: "rgba(56,199,134,0.14)" }}
-          >
-            <Ionicons name="shield-checkmark" size={30} color={C.toxic} />
-          </View>
-          <View className="mt-5">
-            <Kicker color={C.toxic}>Block · armed</Kicker>
-            <Text className="mt-3 text-[30px] font-semibold text-bone" style={{ letterSpacing: -0.5 }}>
-              Reels can't reach you.
-            </Text>
-            <Text className="mt-2.5 text-[15px] leading-snug text-ash">
-              New reels and shorts get bounced the instant they appear — so
-              today's tally stops climbing.
-            </Text>
-          </View>
-          <Counts count={count} shorts={shorts} suffix="logged today" />
-        </View>
+        <BlockHero count={count} />
       )}
 
       <View className="mt-8">
         <ModeSwitch mode={mode} onChangeMode={onChangeMode} />
       </View>
 
-      <View className="mt-auto pt-8">
-        <Pressable
-          onPress={onOpenCats}
-          className="items-center rounded-2xl bg-panel py-4 active:opacity-80"
-        >
-          <Text className="text-[15.5px] font-semibold text-bone">Cats, not reels</Text>
-        </Pressable>
-        <Pressable
-          onPress={onOpenHistory}
-          className="mt-3 flex-row items-center justify-between border-t border-bone/10 px-0.5 py-4 active:opacity-60"
-        >
-          <Text className="text-[15.5px] font-medium text-bone">View history</Text>
-          <Ionicons name="chevron-forward" size={18} color={C.dim} />
-        </Pressable>
-        <View className="mt-4">{PRIVACY}</View>
+      <View className="mt-auto flex-row gap-3 pt-6">
+        <TrayButton icon="paw" label="Cats" onPress={onOpenCats} />
+        <TrayButton icon="bar-chart" label="History" onPress={onOpenHistory} />
       </View>
     </View>
   );
 }
 
-function Counts({
+function GuiltHero({
+  minutes,
   count,
   shorts,
-  suffix,
 }: {
+  minutes: number;
   count: number;
   shorts: number;
-  suffix?: string;
 }) {
+  const over = minutes > BUDGET;
+  const numColor = over ? OVER : WASTE;
+  const limitLabel = over
+    ? `${minutes - BUDGET} min over your ${BUDGET}-min limit`
+    : `${BUDGET - minutes} min left of your ${BUDGET}-min limit`;
   return (
-    <Text className="mt-1.5 text-[15px] text-ash">
-      <Text className="font-semibold text-bone">{count}</Text>{" "}
-      {count === 1 ? "reel" : "reels"}
-      {"   ·   "}
-      <Text className="font-semibold text-bone">{shorts}</Text>{" "}
-      {shorts === 1 ? "short" : "shorts"}
-      {suffix ? <Text className="text-dim">{`  ${suffix}`}</Text> : null}
-    </Text>
+    <View className="mt-11">
+      <View className="flex-row items-baseline">
+        <Text
+          className="font-semibold"
+          style={{ fontSize: 88, lineHeight: 86, letterSpacing: -3, color: numColor, fontVariant: ["tabular-nums"] }}
+        >
+          {minutes}
+        </Text>
+        <Text className="ml-2.5 text-dim" style={{ fontSize: 21, fontWeight: "500" }}>
+          min wasted today
+        </Text>
+      </View>
+      <WasteWall minutes={minutes} />
+      <Kicker style={{ marginTop: 12, color: numColor, letterSpacing: 0.6 }}>
+        {limitLabel}
+      </Kicker>
+      <Text className="mt-6 text-[22px] font-semibold text-bone" style={{ letterSpacing: -0.4 }}>
+        {vibe(minutes).title}
+      </Text>
+      <Counts count={count} shorts={shorts} />
+    </View>
   );
 }
+
+function BlockHero({ count }: { count: number }) {
+  return (
+    <View className="mt-14">
+      <View
+        className="h-[72px] w-[72px] items-center justify-center rounded-full"
+        style={{ backgroundColor: "rgba(56,199,134,0.14)" }}
+      >
+        <Ionicons name="shield-checkmark" size={32} color={C.toxic} />
+      </View>
+      <Text className="mt-6 text-[32px] font-semibold text-bone" style={{ letterSpacing: -0.6, lineHeight: 36 }}>
+        Reels can't{"\n"}reach you.
+      </Text>
+      <Text className="mt-2.5 text-[15px] leading-snug text-ash">
+        Every reel and short gets bounced the second it appears.
+      </Text>
+      <View className="mt-7 flex-row items-baseline gap-2.5">
+        <Text
+          className="text-[40px] font-semibold text-toxic"
+          style={{ letterSpacing: -1, fontVariant: ["tabular-nums"] }}
+        >
+          {count}
+        </Text>
+        <Text className="text-[14px] text-ash">
+          {count === 1 ? "reel" : "reels"} bounced today
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+/** The wall of wasted minutes: a budget container that fills amber, then overflows red. */
+function WasteWall({ minutes }: { minutes: number }) {
+  const over = Math.max(0, minutes - BUDGET);
+  return (
+    <View style={styles.wall}>
+      {Array.from({ length: BUDGET }).map((_, i) => (
+        <View key={`b${i}`} style={[styles.cell, i < minutes ? styles.cellFill : styles.cellEmpty]} />
+      ))}
+      {Array.from({ length: over }).map((_, i) => (
+        <View key={`o${i}`} style={[styles.cell, styles.cellOver]} />
+      ))}
+    </View>
+  );
+}
+
+function Counts({ count, shorts }: { count: number; shorts: number }) {
+  return (
+    <View className="mt-3 flex-row gap-5">
+      <CountItem color={WASTE} value={count} unit={count === 1 ? "reel" : "reels"} />
+      <CountItem color="rgba(224,145,60,0.35)" value={shorts} unit={shorts === 1 ? "short" : "shorts"} />
+    </View>
+  );
+}
+
+function CountItem({ color, value, unit }: { color: string; value: number; unit: string }) {
+  return (
+    <View className="flex-row items-center gap-2">
+      <View style={{ width: 9, height: 9, borderRadius: 2, backgroundColor: color }} />
+      <Text className="text-[14px] text-ash">
+        <Text className="font-semibold text-bone">{value}</Text> {unit}
+      </Text>
+    </View>
+  );
+}
+
+function TrayButton({
+  icon,
+  label,
+  onPress,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      className="flex-1 flex-row items-center justify-center gap-2 rounded-2xl bg-panel py-4 active:opacity-80"
+    >
+      <Ionicons name={icon} size={18} color={C.bone} />
+      <Text className="text-[15px] font-semibold text-bone">{label}</Text>
+    </Pressable>
+  );
+}
+
+const styles = StyleSheet.create({
+  wall: { marginTop: 22, flexDirection: "row", flexWrap: "wrap", gap: 5 },
+  cell: { width: 16, height: 16, borderRadius: 3 },
+  cellFill: { backgroundColor: WASTE },
+  cellEmpty: { backgroundColor: "transparent", borderWidth: 1, borderColor: "rgba(224,145,60,0.20)" },
+  cellOver: { backgroundColor: OVER },
+});
 
 function ModeSwitch({
   mode,
