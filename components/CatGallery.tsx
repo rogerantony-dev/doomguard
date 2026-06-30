@@ -11,7 +11,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 
 import { CATS } from "./cats";
-import { C, Glow, Label } from "./console";
+import { C } from "./console";
 
 const GAP = 12;
 const PAGE_PADDING = 20;
@@ -30,19 +30,19 @@ export function CatGallery({
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <View className="flex-1 bg-ink">
-        <Glow color={C.toxic} />
         <SafeAreaView className="flex-1" edges={["top", "bottom"]}>
-        <View className="flex-row items-center justify-between px-5 pb-3 pt-2">
-          <View className="gap-1">
-            <Label color={C.toxic}>{"// REST MODE"}</Label>
-            <Text className="text-2xl font-bold text-bone">Cats, not reels</Text>
-            <Text className="text-sm text-ash">
+        <View className="flex-row items-start justify-between px-6 pb-3 pt-2">
+          <View className="flex-1 gap-1.5">
+            <Text className="text-[26px] font-semibold text-bone" style={{ letterSpacing: -0.6 }}>
+              Cats, not reels
+            </Text>
+            <Text className="text-[14px] text-ash">
               Rest your eyes on something better.
             </Text>
           </View>
           <Pressable
             onPress={onClose}
-            className="h-10 w-10 items-center justify-center rounded-full border border-bone/10 bg-[#16161C] active:opacity-70"
+            className="h-10 w-10 items-center justify-center rounded-full bg-panel active:opacity-70"
           >
             <Ionicons name="close" size={22} color={C.ash} />
           </Pressable>

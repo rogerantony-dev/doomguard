@@ -9,21 +9,23 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        // "Hazard Console" identity — a doomscroll monitor styled like safety gear.
-        ink: "#08080A",
-        ink2: "#0C0C10",
-        panel: "#141419",
-        panelhi: "#1B1B22",
-        bone: "#F4F1EA",
-        ash: "#9C9CA6",
-        dim: "#5C5C66",
-        // Primary "pop" accent — electric cyan on near-black (was ember red).
-        // Token names kept as ember* so usages don't churn.
-        ember: "#19E3FF",
-        emberdeep: "#0BB6D6",
+        // "Quiet" identity — minimal, dark-first. Near-black canvas, warm
+        // off-white text, a single green accent used only where it MEANS
+        // something (service on, blocked/safe, enabled, improving).
+        ink: "#0D0D0C", // app canvas
+        ink2: "#141413", // deeper recess
+        panel: "#1A1A18", // subtle grouped fill (no border/shadow needed)
+        panelhi: "#2C2C29", // raised / active segment
+        bone: "#F2F1EC", // primary text (warm off-white)
+        ash: "#9A9A92", // secondary text
+        dim: "#62625B", // tertiary text / labels
+        // Token names kept (ember*/toxic*) so usages don't churn; both point at
+        // the one green accent now. amber retained for the warn glyph.
+        ember: "#38C786",
+        emberdeep: "#2E9466",
         amber: "#F5A524",
-        toxic: "#3DDC84",
-        toxicdeep: "#0F3A24",
+        toxic: "#38C786",
+        toxicdeep: "#0E3D29",
       },
     },
   },

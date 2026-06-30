@@ -43,7 +43,10 @@ yarn-error.*
 # local module build artifacts
 modules/**/build/
 
-# design preview render output (regenerate: node design-previews/gen.js)
+# design preview render output (regenerate: node design-previews/gen*.js)
 design-previews/out/
 design-previews/out-ledger/
+design-previews/out-quiet/
+design-previews/out-quiet-dark/
+design-previews/out-clarity/
 .superpowers/

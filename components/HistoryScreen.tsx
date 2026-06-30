@@ -5,22 +5,15 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import Svg, { Line, Rect } from "react-native-svg";
 
-import {
-  C,
-  Glow,
-  Instrument,
-  Label,
-  Mono,
-  Scanlines,
-  SectionRule,
-} from "./console";
+import { C, Kicker, Segmented } from "./console";
 import { buildView, type HistoryRange } from "./history";
 import { getHistory } from "../modules/doomguardnative";
 
 type Metric = "time" | "count";
 
-const IG_PINK = "#E1306C";
-const YT_RED = "#FF0000";
+// Monochrome series colours — reels read as the primary tone, shorts a step back.
+const REELS = C.bone;
+const SHORTS = C.ash;
 
 /** Device-local "yyyy-mm-dd", matching the native SimpleDateFormat. */
 function localToday(): string {
@@ -29,26 +22,6 @@ function localToday(): string {
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
-}
-
-/** Matches the native pill curve: calm under ~10 min, fully red by ~50. */
-function rednessForMinutes(minutes: number): number {
-  return Math.min(1, Math.max(0, (minutes - 10) / 40));
-}
-
-function mix(a: string, b: string, t: number): string {
-  const pa = [parseInt(a.slice(1, 3), 16), parseInt(a.slice(3, 5), 16), parseInt(a.slice(5, 7), 16)];
-  const pb = [parseInt(b.slice(1, 3), 16), parseInt(b.slice(3, 5), 16), parseInt(b.slice(5, 7), 16)];
-  const c = pa.map((v, i) => Math.round(v + (pb[i] - v) * t));
-  return `#${c.map((v) => v.toString(16).padStart(2, "0")).join("")}`;
-}
-
-/** Interpolate the cyan→amber→red "heat" used for time bars. */
-function heatColor(intensity: number): string {
-  const t = Math.min(1, Math.max(0, intensity));
-  // cyan (calm) -> amber (warming) -> red (alarm)
-  if (t < 0.5) return mix("#19E3FF", "#F5A524", t / 0.5);
-  return mix("#F5A524", "#FF3B3B", (t - 0.5) / 0.5);
 }
 
 /** "1h 5m" / "5m" / "0m" from seconds. */
@@ -114,92 +87,91 @@ export function HistoryScreen({ onBack }: { onBack: () => void }) {
 
   return (
     <View className="flex-1 bg-ink">
-      <Glow color={C.ember} />
-      <Scanlines />
       <SafeAreaView className="flex-1">
         <StatusBar style="light" />
 
-        <View className="flex-row items-center gap-3 px-5 pb-2 pt-3">
+        <View className="flex-row items-center px-5 pb-1 pt-3">
           <Pressable
             onPress={onBack}
             hitSlop={12}
-            className="h-10 w-10 items-center justify-center rounded-full active:opacity-60"
+            className="-ml-1 h-10 w-10 items-center justify-center rounded-full active:opacity-60"
           >
-            <Ionicons name="arrow-back" size={24} color={C.bone} />
+            <Ionicons name="arrow-back" size={23} color={C.bone} />
           </Pressable>
-          <Text className="text-[22px] font-extrabold text-bone" style={{ letterSpacing: -0.5 }}>
-            History
-          </Text>
         </View>
 
-        <ScrollView className="flex-1" contentContainerStyle={{ paddingBottom: 32 }}>
-          <View className="gap-6 px-5 py-4">
-            <Segmented
-              options={[
-                { key: "7d", label: "7 days" },
-                { key: "30d", label: "30 days" },
-                { key: "all", label: "All" },
-              ]}
-              value={range}
-              onChange={(k) => setRange(k as HistoryRange)}
-            />
+        <ScrollView className="flex-1" contentContainerStyle={{ paddingBottom: 36 }}>
+          <View className="gap-5 px-6 py-3">
+            <Text className="text-[26px] font-semibold text-bone" style={{ letterSpacing: -0.6 }}>
+              History
+            </Text>
 
-            <Segmented
-              options={[
-                { key: "time", label: "Time" },
-                { key: "count", label: "Count" },
-              ]}
-              value={metric}
-              onChange={(k) => setMetric(k as Metric)}
-            />
+            <View className="gap-2.5">
+              <Segmented<HistoryRange>
+                options={[
+                  { key: "7d", label: "7 days" },
+                  { key: "30d", label: "30 days" },
+                  { key: "all", label: "All" },
+                ]}
+                value={range}
+                onChange={setRange}
+              />
+              <Segmented<Metric>
+                options={[
+                  { key: "time", label: "Time" },
+                  { key: "count", label: "Count" },
+                ]}
+                value={metric}
+                onChange={setMetric}
+              />
+            </View>
 
             {!hasData ? (
-              <Instrument className="items-center gap-3 px-5 py-10">
-                <Ionicons name="bar-chart-outline" size={40} color={C.dim} />
+              <View className="items-center gap-3 rounded-3xl bg-panel px-5 py-12">
+                <Ionicons name="bar-chart-outline" size={36} color={C.dim} />
                 <Text className="text-center text-[15px] leading-6 text-ash">
                   No history yet — your first day is being logged.{"\n"}Check back tomorrow.
                 </Text>
-              </Instrument>
+              </View>
             ) : (
               <>
-                <View className="flex-row gap-3">
-                  <Stat label="Total" value={fmtTotal} />
+                <View className="mt-2 flex-row">
+                  <Stat label="Total" value={fmtTotal} first />
                   <Stat label="Daily avg" value={fmtAvg} />
                   <Stat
                     label="Trend"
                     value={trendPct == null ? "—" : `${trendPct > 0 ? "+" : ""}${trendPct}%`}
-                    tone={trendPct == null ? "neutral" : trendPct > 0 ? "bad" : "good"}
+                    tone={trendPct != null && trendPct < 0 ? "good" : "neutral"}
                   />
                 </View>
 
                 {busiest ? (
-                  <Text className="-mt-2 px-1 text-[13px] text-ash">
-                    Busiest day:{" "}
-                    <Text className="font-bold text-bone">{busiest.date}</Text> · {fmtBusiest}
+                  <Text className="text-[13px] text-ash">
+                    Busiest day{"  "}
+                    <Text className="font-semibold text-bone">{busiest.date}</Text> · {fmtBusiest}
                   </Text>
                 ) : null}
 
-                <Instrument className="gap-4 px-3 py-5">
-                  <Label style={{ marginLeft: 8 }}>
-                    {metric === "time" ? "// MINUTES PER DAY" : "// REELS + SHORTS PER DAY"}
-                  </Label>
+                <View className="mt-2 gap-3">
+                  <Kicker>
+                    {metric === "time" ? "Minutes per day" : "Reels + shorts per day"}
+                  </Kicker>
                   <Chart series={view.series} metric={metric} range={range} />
                   {metric === "count" ? (
-                    <View className="flex-row justify-center gap-5 pt-1">
-                      <LegendDot color={IG_PINK} label="Reels" />
-                      <LegendDot color={YT_RED} label="Shorts" />
+                    <View className="flex-row justify-center gap-6 pt-1">
+                      <LegendDot color={REELS} label="Reels" />
+                      <LegendDot color={SHORTS} label="Shorts" />
                     </View>
                   ) : (
-                    <Text className="px-2 text-center text-[12px] text-dim">
+                    <Text className="text-center text-[12px] text-dim">
                       Reels + shorts combined — they share one timer.
                     </Text>
                   )}
-                </Instrument>
+                </View>
               </>
             )}
 
-            <SectionRule>NOTE</SectionRule>
-            <Text className="px-1 text-[12.5px] leading-5 text-dim">
+            <Text className="mt-4 border-t border-bone/10 pt-5 text-[12.5px] leading-5 text-dim">
               History starts the day you updated the app — earlier days weren't recorded. It fills
               in one day at a time and lives only on this device.
             </Text>
@@ -210,51 +182,27 @@ export function HistoryScreen({ onBack }: { onBack: () => void }) {
   );
 }
 
-function Segmented({
-  options,
-  value,
-  onChange,
-}: {
-  options: { key: string; label: string }[];
-  value: string;
-  onChange: (key: string) => void;
-}) {
-  return (
-    <View className="flex-row gap-1.5 rounded-2xl border border-bone/10 bg-ink2 p-1.5">
-      {options.map((o) => {
-        const active = o.key === value;
-        return (
-          <Pressable
-            key={o.key}
-            onPress={() => onChange(o.key)}
-            className={`flex-1 items-center rounded-xl py-2.5 ${active ? "bg-bone" : ""}`}
-          >
-            <Text className={`text-[14px] font-bold ${active ? "text-ink" : "text-ash"}`}>
-              {o.label}
-            </Text>
-          </Pressable>
-        );
-      })}
-    </View>
-  );
-}
-
 function Stat({
   label,
   value,
   tone = "neutral",
+  first,
 }: {
   label: string;
   value: string;
-  tone?: "neutral" | "good" | "bad";
+  tone?: "neutral" | "good";
+  first?: boolean;
 }) {
-  const color = tone === "good" ? C.toxic : tone === "bad" ? C.amber : C.bone;
+  const color = tone === "good" ? C.toxic : C.bone;
   return (
-    <View className="flex-1 gap-1 rounded-2xl border border-bone/10 bg-panel px-3 py-3">
-      <Label>{label}</Label>
-      <Mono className="text-[18px] font-bold" style={{ color }}>
+    <View className={`flex-1 ${first ? "" : "border-l border-bone/10 pl-4"}`}>
+      <Kicker style={{ fontSize: 11 }}>{label}</Kicker>
+      <Text
+        className="mt-2 text-[24px] font-semibold"
+        style={{ color, letterSpacing: -0.5, fontVariant: ["tabular-nums"] }}
+      >
         {value}
-      </Mono>
+      </Text>
     </View>
   );
 }
@@ -263,7 +211,7 @@ function LegendDot({ color, label }: { color: string; label: string }) {
   return (
     <View className="flex-row items-center gap-2">
       <View style={{ width: 9, height: 9, borderRadius: 5, backgroundColor: color }} />
-      <Text className="text-[12px] text-ash">{label}</Text>
+      <Text className="text-[12.5px] text-ash">{label}</Text>
     </View>
   );
 }
@@ -290,7 +238,7 @@ function Chart({
   const avail = Math.max(0, viewW - 16); // minus contentContainer padding (8 each side)
   const slot =
     series.length > 0 && avail > 0 ? Math.max(minSlot, avail / series.length) : minSlot;
-  const barW = Math.round(slot * 0.6);
+  const barW = Math.round(slot * 0.56);
   const width = Math.max(series.length * slot, 1);
 
   const value = (d: (typeof series)[number]) =>
@@ -323,7 +271,7 @@ function Chart({
               x2={width}
               y2={y}
               stroke={C.bone}
-              strokeOpacity={0.08}
+              strokeOpacity={0.07}
               strokeWidth={1}
             />
           ))}
@@ -332,6 +280,8 @@ function Chart({
             if (metric === "time") {
               const mins = d.seconds / 60;
               const h = max > 0 ? (mins / max) * plotH : 0;
+              // Quiet days recede; only the meaningful ones read at full weight.
+              const faint = mins > 0 && mins < max * 0.15;
               return (
                 <Rect
                   key={d.date}
@@ -340,11 +290,11 @@ function Chart({
                   width={barW}
                   height={Math.max(h, mins > 0 ? 2 : 0)}
                   rx={3}
-                  fill={heatColor(rednessForMinutes(mins))}
+                  fill={faint ? "#3A3A35" : C.bone}
                 />
               );
             }
-            // stacked counts: reels (pink) bottom, shorts (red) on top
+            // stacked counts: reels (bone) bottom, shorts (ash) on top
             const reelH = max > 0 ? (d.count / max) * plotH : 0;
             const shortH = max > 0 ? (d.shorts / max) * plotH : 0;
             const baseY = TOP + plotH;
@@ -355,14 +305,16 @@ function Chart({
                   y={baseY - reelH}
                   width={barW}
                   height={Math.max(reelH, d.count > 0 ? 2 : 0)}
-                  fill={IG_PINK}
+                  rx={3}
+                  fill={REELS}
                 />
                 <Rect
                   x={x}
                   y={baseY - reelH - shortH}
                   width={barW}
                   height={Math.max(shortH, d.shorts > 0 ? 2 : 0)}
-                  fill={YT_RED}
+                  rx={3}
+                  fill={SHORTS}
                 />
               </React.Fragment>
             );
@@ -374,9 +326,9 @@ function Chart({
             const show = range === "7d" || i === series.length - 1 || i % 5 === 0;
             return (
               <View key={d.date} style={{ width: slot, alignItems: "center" }}>
-                <Mono className="text-[10px] text-dim">
+                <Text className="text-[10px] text-dim" style={{ fontVariant: ["tabular-nums"] }}>
                   {show ? (range === "7d" ? weekdayLetter(d.date) : dayOfMonth(d.date)) : ""}
-                </Mono>
+                </Text>
               </View>
             );
           })}
