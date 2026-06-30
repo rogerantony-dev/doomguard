@@ -35,6 +35,8 @@ class DoomguardWidgetProvider : AppWidgetProvider() {
 
     companion object {
         private const val PREFS = "doomguard_reels"
+        /** Daily limit, in minutes — mirrors BUDGET on the in-app dashboard. */
+        private const val BUDGET_MIN = 60
 
         /**
          * Push the current counts to every placed widget. Safe to call from the
@@ -61,8 +63,20 @@ class DoomguardWidgetProvider : AppWidgetProvider() {
 
             val views = RemoteViews(context.packageName, R.layout.doomguard_widget)
             views.setTextViewText(R.id.widget_time, formatTime(seconds))
-            views.setTextViewText(R.id.widget_reels, "🎬 $reels${plural(reels, " reel", " reels")}")
-            views.setTextViewText(R.id.widget_shorts, "▶ $shorts${plural(shorts, " short", " shorts")}")
+
+            // Budget line + colour: amber while under the daily limit, red once over.
+            val minutes = seconds / 60
+            val over = minutes > BUDGET_MIN
+            val color = if (over) 0xFFD2542F.toInt() else 0xFFE0913C.toInt()
+            val limit =
+                if (over) "${minutes - BUDGET_MIN} min over your ${BUDGET_MIN}-min limit"
+                else "${BUDGET_MIN - minutes} min left of your ${BUDGET_MIN}-min limit"
+            views.setTextViewText(R.id.widget_limit, limit)
+            views.setTextColor(R.id.widget_time, color)
+            views.setTextColor(R.id.widget_limit, color)
+
+            views.setTextViewText(R.id.widget_reels, "$reels${plural(reels, " reel", " reels")}")
+            views.setTextViewText(R.id.widget_shorts, "$shorts${plural(shorts, " short", " shorts")}")
 
             // Tapping the widget opens the app.
             context.packageManager.getLaunchIntentForPackage(context.packageName)?.let { launch ->

@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Home-screen widget face. RemoteViews only supports the basic layout/widget
-  classes, so this stays to nested LinearLayouts + TextViews. The dark gradient
-  card and bloodshot-red brand mark echo the floating pill and stopwatch.
+  Home-screen widget face — "Quiet" look. RemoteViews only supports basic
+  layout/widget classes, so this stays nested LinearLayouts + TextViews. The
+  amber "time wasted" readout and budget line mirror the in-app dashboard; the
+  service recolours the time + limit red once the daily limit is blown.
 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/doomguard_widget_root"
@@ -11,23 +12,23 @@
     android:orientation="vertical"
     android:gravity="center_vertical"
     android:background="@drawable/doomguard_widget_bg"
-    android:padding="18dp">
+    android:padding="20dp">
 
     <TextView
         android:id="@+id/widget_brand"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="DOOMGUARD"
-        android:textColor="#D6443C"
+        android:textColor="#9A9A92"
         android:textSize="11sp"
         android:textStyle="bold"
-        android:letterSpacing="0.18"
+        android:letterSpacing="0.16"
         android:fontFamily="sans-serif-medium" />
 
     <LinearLayout
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="6dp"
+        android:layout_marginTop="8dp"
         android:orientation="horizontal"
         android:baselineAligned="true">
 
@@ -36,31 +37,43 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="0m"
-            android:textColor="#FFFFFF"
-            android:textSize="34sp"
+            android:textColor="#E0913C"
+            android:textSize="36sp"
             android:textStyle="bold" />
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginStart="8dp"
+            android:layout_marginStart="9dp"
             android:text="wasted today"
-            android:textColor="#8A8A93"
+            android:textColor="#9A9A92"
             android:textSize="13sp" />
     </LinearLayout>
+
+    <TextView
+        android:id="@+id/widget_limit"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:text="60 min left of your limit"
+        android:textColor="#E0913C"
+        android:textSize="11sp"
+        android:textStyle="bold"
+        android:letterSpacing="0.04"
+        android:fontFamily="sans-serif-medium" />
 
     <LinearLayout
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="12dp"
+        android:layout_marginTop="14dp"
         android:orientation="horizontal">
 
         <TextView
             android:id="@+id/widget_reels"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="🎬 0 reels"
-            android:textColor="#E8E8EE"
+            android:text="0 reels"
+            android:textColor="#9A9A92"
             android:textSize="14sp" />
 
         <TextView
@@ -68,8 +81,8 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="18dp"
-            android:text="▶ 0 shorts"
-            android:textColor="#E8E8EE"
+            android:text="0 shorts"
+            android:textColor="#9A9A92"
             android:textSize="14sp" />
     </LinearLayout>
 </LinearLayout>

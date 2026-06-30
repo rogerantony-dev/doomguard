@@ -58,6 +58,9 @@ class ReelAccessibilityService : AccessibilityService() {
     // to true only for a tuning build — it's noisy and not for real use.
     private val debug = false
 
+    /** Daily limit, in minutes — mirrors BUDGET on the dashboard + widget. */
+    private val budgetMinutes = 60
+
     private var windowManager: WindowManager? = null
     private var pill: View? = null
     private var dialView: StopwatchView? = null
@@ -1091,7 +1094,8 @@ class ReelAccessibilityService : AccessibilityService() {
         if (!Settings.canDrawOverlays(this)) return
 
         if (!overlayShown) buildPill()
-        dialView?.setIntensity(rednessFor(currentSeconds()))
+        dialView?.setProgress(currentSeconds() / (budgetMinutes * 60f))
+        pillLabel?.setTextColor(Color.WHITE)
         pillLabel?.text = debugText ?: pillText(currentSeconds())
     }
 
@@ -1100,8 +1104,9 @@ class ReelAccessibilityService : AccessibilityService() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         if (!Settings.canDrawOverlays(this)) return
         if (!overlayShown) buildPill()
-        dialView?.setIntensity(1f)
-        pillLabel?.text = "🛡  Blocked"
+        dialView?.setBlocked()
+        pillLabel?.setTextColor(Color.parseColor("#38C786"))
+        pillLabel?.text = "Blocked"
     }
 
     private fun buildPill() {
@@ -1671,17 +1676,13 @@ class ReelAccessibilityService : AccessibilityService() {
         return if (m < 60) "${m}m" else "${m / 60}h ${m % 60}m"
     }
 
-    /** Calm below ~10 min, ramping to fully red (1f) by ~50 min on reels. */
-    private fun rednessFor(seconds: Int): Float =
-        ((seconds / 60f - 10f) / 40f).coerceIn(0f, 1f)
-
     private fun pillBackground(): GradientDrawable =
         GradientDrawable(
             GradientDrawable.Orientation.TOP_BOTTOM,
-            intArrayOf(Color.parseColor("#F21B1B1F"), Color.parseColor("#F20E0E12"))
+            intArrayOf(Color.parseColor("#F21A1A18"), Color.parseColor("#F2141413"))
         ).apply {
-            cornerRadius = dp(24).toFloat()
-            setStroke(dp(1), Color.parseColor("#26FFFFFF"))
+            cornerRadius = dp(22).toFloat()
+            setStroke(dp(1), Color.parseColor("#1AF2F1EC"))
         }
 
     private fun dp(value: Int): Int =
@@ -1731,26 +1732,35 @@ class ReelAccessibilityService : AccessibilityService() {
 }
 
 /**
- * A small, hand-drawn stopwatch whose face reddens as [intensity] rises from 0
- * (calm) to 1 (alarming). Its hand sweeps continuously so the pill reads as a
- * running timer, and once red it emits a soft pulsing glow — a visual nag that
- * grows with the minutes spent on reels.
+ * A minimal budget ring for the floating pill: a faint track that fills with the
+ * fraction of today's daily limit spent on reels. Amber while under the limit,
+ * red once it's blown (with a soft pulsing glow — a quiet nag that grows with the
+ * minutes), and a full green ring while Block mode is holding the line.
  */
 private class StopwatchView(context: Context) : View(context) {
 
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
 
-    private var intensity = 0f // 0..1 redness
+    private var progress = 0f // 0..1+, fraction of the daily limit used
+    private var blocked = false
     private var pulse = 0f // 0..1 glow breathing
-    private var handAngle = 0f // degrees, 0 = 12 o'clock, sweeping clockwise
 
     private var pulseAnimator: ValueAnimator? = null
-    private var sweepAnimator: ValueAnimator? = null
 
-    fun setIntensity(value: Float) {
-        val clamped = value.coerceIn(0f, 1f)
-        if (clamped != intensity) {
-            intensity = clamped
+    /** Fraction of the daily limit spent on reels (may exceed 1 when over). */
+    fun setProgress(value: Float) {
+        blocked = false
+        val v = value.coerceAtLeast(0f)
+        if (v != progress) {
+            progress = v
+            invalidate()
+        }
+    }
+
+    /** Block mode is holding the line — show a full green ring. */
+    fun setBlocked() {
+        if (!blocked) {
+            blocked = true
             invalidate()
         }
     }
@@ -1763,18 +1773,7 @@ private class StopwatchView(context: Context) : View(context) {
             repeatCount = ValueAnimator.INFINITE
             addUpdateListener {
                 pulse = it.animatedValue as Float
-                if (intensity > 0f) invalidate()
-            }
-            start()
-        }
-        sweepAnimator = ValueAnimator.ofFloat(0f, 360f).apply {
-            duration = 2000L // one sweep every two seconds
-            repeatMode = ValueAnimator.RESTART
-            repeatCount = ValueAnimator.INFINITE
-            interpolator = android.view.animation.LinearInterpolator()
-            addUpdateListener {
-                handAngle = it.animatedValue as Float
-                invalidate()
+                if (!blocked && progress >= 1f) invalidate()
             }
             start()
         }
@@ -1782,7 +1781,6 @@ private class StopwatchView(context: Context) : View(context) {
 
     override fun onDetachedFromWindow() {
         pulseAnimator?.cancel()
-        sweepAnimator?.cancel()
         super.onDetachedFromWindow()
     }
 
@@ -1791,79 +1789,44 @@ private class StopwatchView(context: Context) : View(context) {
         val h = height.toFloat()
         val cx = w / 2f
         val cy = h / 2f
-        val r = minOf(w, h) * 0.36f
+        val r = minOf(w, h) * 0.40f
+        val stroke = minOf(w, h) * 0.13f
 
-        // Pulsing red glow behind the watch when the minutes pile up.
-        if (intensity > 0f) {
-            val glowAlpha = (intensity * (0.30f + 0.30f * pulse) * 255f).toInt().coerceIn(0, 255)
+        val over = !blocked && progress >= 1f
+        val accent = when {
+            blocked -> Color.parseColor("#38C786")
+            over -> Color.parseColor("#D2542F")
+            else -> Color.parseColor("#E0913C")
+        }
+
+        // Soft pulse behind the ring once the limit is blown.
+        if (over) {
+            val glowAlpha = ((0.28f + 0.30f * pulse) * 255f).toInt().coerceIn(0, 255)
             paint.shader = RadialGradient(
-                cx, cy, r * 1.7f,
-                Color.argb(glowAlpha, 255, 45, 32), Color.TRANSPARENT,
+                cx, cy, r * 1.8f,
+                Color.argb(glowAlpha, 210, 84, 47), Color.TRANSPARENT,
                 Shader.TileMode.CLAMP
             )
             paint.style = Paint.Style.FILL
-            canvas.drawCircle(cx, cy, r * 1.7f, paint)
+            canvas.drawCircle(cx, cy, r * 1.8f, paint)
             paint.shader = null
         }
 
-        val ringColor = lerpColor(Color.rgb(150, 162, 173), Color.rgb(214, 28, 22), intensity)
-        val faceColor = lerpColor(Color.rgb(238, 240, 243), Color.rgb(255, 205, 200), intensity)
-
-        // Crown (top button) + two side buttons.
-        paint.style = Paint.Style.FILL
-        paint.color = ringColor
-        val crownW = r * 0.30f
-        canvas.drawRoundRect(
-            cx - crownW / 2f, cy - r - r * 0.34f, cx + crownW / 2f, cy - r + r * 0.06f,
-            crownW * 0.4f, crownW * 0.4f, paint
-        )
-        paint.strokeWidth = r * 0.16f
+        paint.style = Paint.Style.STROKE
+        paint.strokeWidth = stroke
         paint.strokeCap = Paint.Cap.ROUND
-        paint.style = Paint.Style.STROKE
-        canvas.drawLine(cx + r * 0.62f, cy - r * 0.62f, cx + r * 0.82f, cy - r * 0.82f, paint)
 
-        // Face disc + ring.
-        paint.style = Paint.Style.FILL
-        paint.color = faceColor
-        canvas.drawCircle(cx, cy, r, paint)
-        paint.style = Paint.Style.STROKE
-        paint.strokeWidth = r * 0.14f
-        paint.color = ringColor
+        // Faint track.
+        paint.color = Color.argb(40, Color.red(accent), Color.green(accent), Color.blue(accent))
         canvas.drawCircle(cx, cy, r, paint)
 
-        // Quarter tick marks.
-        paint.strokeWidth = r * 0.10f
-        for (i in 0 until 4) {
-            val a = Math.toRadians((i * 90).toDouble())
-            val sx = cx + (r * 0.74f) * Math.sin(a).toFloat()
-            val sy = cy - (r * 0.74f) * Math.cos(a).toFloat()
-            val ex = cx + (r * 0.92f) * Math.sin(a).toFloat()
-            val ey = cy - (r * 0.92f) * Math.cos(a).toFloat()
-            canvas.drawLine(sx, sy, ex, ey, paint)
+        // Progress arc — full when blocked or over, sweeping from 12 o'clock.
+        val sweep = if (blocked) 360f else progress.coerceAtMost(1f) * 360f
+        paint.color = accent
+        if (sweep >= 360f) {
+            canvas.drawCircle(cx, cy, r, paint)
+        } else if (sweep > 0f) {
+            canvas.drawArc(cx - r, cy - r, cx + r, cy + r, -90f, sweep, false, paint)
         }
-
-        // Sweeping hand (+ short counterweight tail), darkening to red.
-        val handColor = lerpColor(Color.rgb(44, 48, 56), Color.rgb(176, 18, 14), intensity)
-        val rad = Math.toRadians(handAngle.toDouble())
-        val hx = cx + (r * 0.78f) * Math.sin(rad).toFloat()
-        val hy = cy - (r * 0.78f) * Math.cos(rad).toFloat()
-        val tx = cx - (r * 0.24f) * Math.sin(rad).toFloat()
-        val ty = cy + (r * 0.24f) * Math.cos(rad).toFloat()
-        paint.color = handColor
-        paint.strokeWidth = r * 0.13f
-        canvas.drawLine(tx, ty, hx, hy, paint)
-
-        // Center hub.
-        paint.style = Paint.Style.FILL
-        canvas.drawCircle(cx, cy, r * 0.13f, paint)
-    }
-
-    private fun lerpColor(from: Int, to: Int, t: Float): Int {
-        val tt = t.coerceIn(0f, 1f)
-        return Color.rgb(
-            (Color.red(from) + (Color.red(to) - Color.red(from)) * tt).toInt(),
-            (Color.green(from) + (Color.green(to) - Color.green(from)) * tt).toInt(),
-            (Color.blue(from) + (Color.blue(to) - Color.blue(from)) * tt).toInt()
-        )
     }
 }
