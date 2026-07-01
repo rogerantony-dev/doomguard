@@ -13,10 +13,24 @@ import * as IntentLauncher from "expo-intent-launcher";
 
 import { C } from "./console";
 import { CATS } from "./cats";
+import {
+  setBlockAtLimit,
+  setLimit,
+  setMode,
+  setStrict,
+  type DoomguardMode,
+} from "../modules/doomguardnative";
 
 const ANDROID_PACKAGE = "com.rogerantony.doomguard";
 const WASTE = "#E0913C";
-const PAGES = 6;
+const PAGES = 8;
+
+function fmtLimit(min: number): string {
+  if (min < 60) return `${min}m`;
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  return m === 0 ? `${h}h` : `${h}h ${m}m`;
+}
 
 function openAccessibilitySettings() {
   IntentLauncher.startActivityAsync("android.settings.ACCESSIBILITY_SETTINGS").catch(() => {});
@@ -56,6 +70,35 @@ export function OnboardingFlow({
     setPage(c);
   };
 
+  // Mode + its options are chosen on pages 6-7, persisted as you go.
+  const [selMode, setSelMode] = useState<DoomguardMode>("guilt");
+  const [lim, setLim] = useState(60);
+  const [blockLim, setBlockLim] = useState(true);
+  const [strict, setStrictLocal] = useState(false);
+
+  const chooseMode = (m: DoomguardMode) => {
+    setSelMode(m);
+    setMode(m);
+    if (m === "block") {
+      setStrictLocal(true);
+      setStrict(true);
+    }
+  };
+  const pickLimit = (n: number) => {
+    setLim(n);
+    setLimit(n);
+  };
+  const toggleBlockLim = () => {
+    const v = !blockLim;
+    setBlockLim(v);
+    setBlockAtLimit(v);
+  };
+  const toggleStrict = () => {
+    const v = !strict;
+    setStrictLocal(v);
+    setStrict(v);
+  };
+
   return (
     <View className="flex-1" onLayout={(e) => setHeight(e.nativeEvent.layout.height)}>
       <ScrollView
@@ -93,6 +136,119 @@ export function OnboardingFlow({
             </View>
           </View>
         ))}
+
+        <View style={{ width, height }} className="px-6 pb-3 pt-3">
+          <Header index={5} onSkip={() => {}} />
+          <View className="flex-1 justify-center">
+            <Text className="text-[28px] font-semibold text-bone" style={{ letterSpacing: -0.5 }}>
+              How should it work?
+            </Text>
+            <Text className="mt-2.5 text-[15px] leading-snug text-ash">
+              Pick one. You can change it anytime.
+            </Text>
+            <View className="mt-7 gap-3.5">
+              <ModeCard
+                selected={selMode === "guilt"}
+                accent={WASTE}
+                soft="rgba(224,145,60,0.08)"
+                iconBg="rgba(224,145,60,0.14)"
+                icon="stopwatch-outline"
+                title="Guilt"
+                body="Time your scrolling. Block the reels once you hit a daily limit you set."
+                onPress={() => chooseMode("guilt")}
+              />
+              <ModeCard
+                selected={selMode === "block"}
+                accent={C.toxic}
+                soft="rgba(56,199,134,0.08)"
+                iconBg="rgba(56,199,134,0.14)"
+                icon="shield-checkmark"
+                title="Block"
+                body="Wall off every reel and short, all day. The strict option."
+                onPress={() => chooseMode("block")}
+              />
+            </View>
+          </View>
+          <View className="gap-5">
+            <Dots active={5} />
+            <Primary label="Continue" onPress={() => goTo(selMode === "block" ? 7 : 6)} />
+          </View>
+        </View>
+
+        <View style={{ width, height }} className="px-6 pb-3 pt-3">
+          <Header index={6} onSkip={() => {}} />
+          <View className="flex-1 justify-center">
+            {selMode === "guilt" ? (
+              <>
+                <Text className="text-[28px] font-semibold text-bone" style={{ letterSpacing: -0.5 }}>
+                  Set your limit.
+                </Text>
+                <Text className="mt-2.5 text-[15px] leading-snug text-ash">
+                  Doomguard blocks the reels once you cross it.
+                </Text>
+                <View className="mt-6 flex-row flex-wrap justify-between gap-y-2.5">
+                  {[15, 30, 45, 60, 90, 120].map((m) => {
+                    const sel = m === lim;
+                    return (
+                      <Pressable
+                        key={m}
+                        onPress={() => pickLimit(m)}
+                        className="w-[31%] items-center rounded-2xl border py-4 active:opacity-80"
+                        style={{
+                          backgroundColor: sel ? "rgba(224,145,60,0.14)" : "transparent",
+                          borderColor: sel ? WASTE : "rgba(242,241,236,0.10)",
+                        }}
+                      >
+                        <Text className="text-[16px] font-semibold" style={{ color: sel ? WASTE : C.bone }}>
+                          {fmtLimit(m)}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+                <OnbToggle
+                  title="Block at limit"
+                  body="Wall reels off once you hit it. Snooze 5 min at a time if you must."
+                  value={blockLim}
+                  onToggle={toggleBlockLim}
+                  first
+                />
+                <OnbToggle
+                  title="Strict mode"
+                  body="No snooze. Locked until midnight."
+                  value={strict}
+                  onToggle={toggleStrict}
+                  lock
+                />
+              </>
+            ) : (
+              <View className="items-center">
+                <View
+                  className="h-20 w-20 items-center justify-center rounded-full"
+                  style={{ backgroundColor: "rgba(56,199,134,0.14)" }}
+                >
+                  <Ionicons name="shield-checkmark" size={40} color={C.toxic} />
+                </View>
+                <Text
+                  className="mt-6 text-center text-[28px] font-semibold text-bone"
+                  style={{ letterSpacing: -0.5 }}
+                >
+                  Block mode.
+                </Text>
+                <Text
+                  className="mt-2.5 text-center text-[15px] leading-snug text-ash"
+                  style={{ maxWidth: 300 }}
+                >
+                  Reels and shorts stay walled off all day, locked until midnight.
+                </Text>
+              </View>
+            )}
+          </View>
+          <View className="gap-5">
+            <Dots active={6} />
+            <Primary label="Continue" onPress={() => goTo(7)} />
+          </View>
+        </View>
 
         <View style={{ width, height }} className="px-6 pb-3 pt-3">
           <Header index={PAGES - 1} onSkip={() => {}} />
@@ -169,6 +325,115 @@ const FEATURES: { art: ReactNode; title: string; sub: string; cta: string }[] = 
     cta: "Next",
   },
 ];
+
+function ModeCard({
+  selected,
+  accent,
+  soft,
+  iconBg,
+  icon,
+  title,
+  body,
+  onPress,
+}: {
+  selected: boolean;
+  accent: string;
+  soft: string;
+  iconBg: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  title: string;
+  body: string;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      className="flex-row items-start gap-4 rounded-[20px] p-5 active:opacity-90"
+      style={{
+        borderWidth: 1.5,
+        borderColor: selected ? accent : "rgba(242,241,236,0.10)",
+        backgroundColor: selected ? soft : C.panel,
+      }}
+    >
+      <View
+        className="h-11 w-11 items-center justify-center rounded-xl"
+        style={{ backgroundColor: iconBg }}
+      >
+        <Ionicons name={icon} size={22} color={accent} />
+      </View>
+      <View className="flex-1">
+        <Text className="text-[17px] font-semibold text-bone">{title}</Text>
+        <Text className="mt-1 text-[13px] leading-snug text-ash">{body}</Text>
+      </View>
+      <View
+        className="mt-0.5 h-[22px] w-[22px] items-center justify-center rounded-full"
+        style={{ borderWidth: 2, borderColor: selected ? accent : "rgba(242,241,236,0.15)" }}
+      >
+        {selected ? (
+          <View style={{ width: 11, height: 11, borderRadius: 999, backgroundColor: accent }} />
+        ) : null}
+      </View>
+    </Pressable>
+  );
+}
+
+function OnbToggle({
+  title,
+  body,
+  value,
+  onToggle,
+  first,
+  lock,
+}: {
+  title: string;
+  body: string;
+  value: boolean;
+  onToggle: () => void;
+  first?: boolean;
+  lock?: boolean;
+}) {
+  return (
+    <View
+      className={`flex-row items-center justify-between gap-4 border-t border-bone/10 py-4 ${
+        first ? "mt-5" : ""
+      }`}
+    >
+      <View className="flex-1">
+        <View className="flex-row items-center gap-1.5">
+          <Text className="text-[15px] font-semibold text-bone">{title}</Text>
+          {lock ? <Ionicons name="lock-closed" size={13} color={C.dim} /> : null}
+        </View>
+        <Text className="mt-1 text-[12.5px] leading-snug text-ash">{body}</Text>
+      </View>
+      <OnbSwitch value={value} onToggle={onToggle} />
+    </View>
+  );
+}
+
+function OnbSwitch({ value, onToggle }: { value: boolean; onToggle: () => void }) {
+  return (
+    <Pressable
+      onPress={onToggle}
+      style={{
+        width: 46,
+        height: 27,
+        borderRadius: 999,
+        backgroundColor: value ? C.toxic : "#3A3A35",
+        justifyContent: "center",
+      }}
+    >
+      <View
+        style={{
+          width: 21,
+          height: 21,
+          borderRadius: 999,
+          backgroundColor: "#FFFFFF",
+          marginLeft: value ? 22 : 3,
+        }}
+      />
+    </Pressable>
+  );
+}
 
 function Header({ index, onSkip }: { index: number; onSkip: () => void }) {
   const dim = index === PAGES - 1;

@@ -30,6 +30,9 @@ class DoomguardnativeModule : Module() {
         "todaySeconds" to todaySeconds(context),
         "mode" to currentMode(context),
         "limitMinutes" to limitMinutes(context),
+        "blockAtLimit" to blockAtLimit(context),
+        "strictMode" to strictMode(context),
+        "autoBlocked" to autoBlocked(context),
       )
     }
 
@@ -42,6 +45,16 @@ class DoomguardnativeModule : Module() {
     Function("setLimit") { minutes: Int ->
       val context = appContext.reactContext?.applicationContext ?: return@Function
       prefs(context).edit().putInt("limitMinutes", minutes.coerceIn(5, 240)).apply()
+    }
+
+    Function("setBlockAtLimit") { enabled: Boolean ->
+      val context = appContext.reactContext?.applicationContext ?: return@Function
+      prefs(context).edit().putBoolean("blockAtLimit", enabled).apply()
+    }
+
+    Function("setStrict") { enabled: Boolean ->
+      val context = appContext.reactContext?.applicationContext ?: return@Function
+      prefs(context).edit().putBoolean("strictMode", enabled).apply()
     }
 
     Function("getHistory") {
@@ -68,6 +81,9 @@ class DoomguardnativeModule : Module() {
     "todaySeconds" to 0,
     "mode" to "guilt",
     "limitMinutes" to 60,
+    "blockAtLimit" to true,
+    "strictMode" to false,
+    "autoBlocked" to false,
   )
 
   private fun prefs(context: Context) =
@@ -79,6 +95,25 @@ class DoomguardnativeModule : Module() {
   /** User-set daily limit, in minutes (default 60). */
   private fun limitMinutes(context: Context): Int =
     prefs(context).getInt("limitMinutes", 60).coerceIn(5, 240)
+
+  /** Auto-block reels once the daily limit is hit (guilt mode). Default on. */
+  private fun blockAtLimit(context: Context): Boolean =
+    prefs(context).getBoolean("blockAtLimit", true)
+
+  /** No snooze / no switching back once blocked. Default off. */
+  private fun strictMode(context: Context): Boolean =
+    prefs(context).getBoolean("strictMode", false)
+
+  /**
+   * True when a guilt-mode user has crossed their limit with auto-block on and
+   * isn't inside a 5-minute snooze — i.e. reels are being bounced right now.
+   */
+  private fun autoBlocked(context: Context): Boolean {
+    if (currentMode(context) != "guilt") return false
+    if (!blockAtLimit(context)) return false
+    if (todaySeconds(context) < limitMinutes(context) * 60) return false
+    return System.currentTimeMillis() >= prefs(context).getLong("snoozeUntil", 0L)
+  }
 
   private fun serviceId(context: Context): String {
     val pkg = context.packageName

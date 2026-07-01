@@ -236,8 +236,14 @@ class ReelAccessibilityService : AccessibilityService() {
         // Block mode is latency-sensitive — the cat cover has to track the reel and
         // react the instant you change tabs — so it runs ONE fast detection pass per
         // platform (not the broader guilt detectors) and reacts to the event type.
-        if (currentMode() == "block" && !debug) {
+        if (isBlockingNow() && !debug) {
             stopReelTimer()
+            // Auto-block (guilt at limit): announce it once, and hold while the
+            // alert is up rather than also bouncing underneath it.
+            if (currentMode() == "guilt") {
+                if (maybeShowLimitAlert()) return
+                if (nudgeModalShown) return
+            }
             if (pkg == youtubePackage) {
                 handleBlockFullScreen(detectShort(root) != null)
             } else {
@@ -296,7 +302,7 @@ class ReelAccessibilityService : AccessibilityService() {
      * polling; false once it's pulled (you left the reel / the app), which stops it.
      */
     private fun refreshPill(): Boolean {
-        if (currentMode() == "block" || debug) return false
+        if (isBlockingNow() || debug) return false
         if (!overlayShown) return false
         val root = rootInActiveWindow ?: return true // transient; keep checking
         val pkg = root.packageName?.toString()
@@ -337,6 +343,21 @@ class ReelAccessibilityService : AccessibilityService() {
     }
 
     private fun currentMode(): String = prefs.getString("mode", "guilt") ?: "guilt"
+
+    // --- Auto-block at the daily limit ----------------------------------------
+    private fun blockAtLimit(): Boolean = prefs.getBoolean("blockAtLimit", true)
+    private fun strictMode(): Boolean = prefs.getBoolean("strictMode", false)
+    private fun snoozing(): Boolean = System.currentTimeMillis() < prefs.getLong("snoozeUntil", 0L)
+
+    /** Guilt user is over the daily limit (auto-block on) and not inside a snooze. */
+    private fun autoBlocking(): Boolean {
+        if (currentMode() != "guilt" || !blockAtLimit()) return false
+        if (currentSeconds() < limitMinutes() * 60) return false
+        return !snoozing()
+    }
+
+    /** Reels should be bounced right now: manual Block, or auto-block at the limit. */
+    private fun isBlockingNow(): Boolean = currentMode() == "block" || autoBlocking()
 
     /** Throttled Back-press used to bounce the user out of a full-screen reel/short. */
     private fun backThrottled() {
@@ -406,7 +427,8 @@ class ReelAccessibilityService : AccessibilityService() {
      * any heavy tree work unless we're actually on the feed and about to draw the block.
      */
     private fun refreshCover(): Boolean {
-        if (currentMode() != "block") { hideCatCover(); return false }
+        if (!isBlockingNow()) { hideCatCover(); return false }
+        if (nudgeModalShown) return true // hold the cover while the limit alert is up
         val root = rootInActiveWindow ?: return true // transient; keep polling
         if (root.packageName?.toString() != instagramPackage) { hideCatCover(); return false }
 
@@ -1469,6 +1491,121 @@ class ReelAccessibilityService : AccessibilityService() {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
         }
         runCatching { if (intent != null) startActivity(intent) }
+    }
+
+    /** Announce auto-block once per day when it first engages (guilt only). */
+    private fun maybeShowLimitAlert(): Boolean {
+        if (currentMode() != "guilt") return false
+        if (nudgeModalShown) return false
+        if (prefs.getString("limitAlertDate", "") == today()) return false
+        prefs.edit().putString("limitAlertDate", today()).apply()
+        showLimitReached()
+        return nudgeModalShown
+    }
+
+    /** "You hit your limit" card, with an optional 5-minute snooze (unless strict). */
+    private fun showLimitReached() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+        if (!Settings.canDrawOverlays(this)) return
+        if (nudgeModalShown) return
+
+        val card = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(22), dp(22), dp(22), dp(20))
+            background = nudgeCardBackground()
+            elevation = dp(12).toFloat()
+        }
+
+        card.addView(TextView(this).apply {
+            text = "${currentSeconds() / 60} min today"
+            setTextColor(Color.parseColor("#E0913C"))
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 10.5f)
+            typeface = Typeface.create(Typeface.DEFAULT_BOLD, Typeface.BOLD)
+            letterSpacing = 0.08f
+            setPadding(dp(11), dp(5), dp(11), dp(5))
+            background = GradientDrawable().apply {
+                cornerRadius = dp(999).toFloat()
+                setColor(Color.parseColor("#24E0913C"))
+            }
+        }, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT
+        ).apply { bottomMargin = dp(14) })
+
+        card.addView(TextView(this).apply {
+            text = "That's your limit."
+            setTextColor(Color.parseColor("#F2F1EC"))
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 24f)
+            typeface = Typeface.create(Typeface.DEFAULT_BOLD, Typeface.BOLD)
+        }, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT
+        ))
+
+        card.addView(TextView(this).apply {
+            text = "You've spent ${fmtDurationLong(currentSeconds())} on reels today. Doomguard's blocking them until midnight."
+            setTextColor(Color.parseColor("#9A9A92"))
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 14.5f)
+            setLineSpacing(dp(3).toFloat(), 1f)
+        }, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+        ).apply { topMargin = dp(9) })
+
+        card.addView(TextView(this).apply {
+            text = "Okay"
+            gravity = Gravity.CENTER
+            setTextColor(Color.parseColor("#04140B"))
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 14.5f)
+            typeface = Typeface.create(Typeface.DEFAULT_BOLD, Typeface.BOLD)
+            setPadding(0, dp(14), 0, dp(14))
+            background = nudgeButtonBackground("#38C786")
+            setOnClickListener { hideNudgeModal() }
+        }, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+        ).apply { topMargin = dp(18) })
+
+        if (!strictMode()) {
+            card.addView(TextView(this).apply {
+                text = "Give me 5 more minutes"
+                gravity = Gravity.CENTER
+                setTextColor(Color.parseColor("#62625B"))
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
+                typeface = Typeface.DEFAULT
+                setPadding(0, dp(12), 0, dp(6))
+                setOnClickListener {
+                    prefs.edit()
+                        .putLong("snoozeUntil", System.currentTimeMillis() + 5 * 60 * 1000L)
+                        .remove("limitAlertDate") // re-announce after the snooze ends
+                        .apply()
+                    hideNudgeModal()
+                }
+            }, LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = dp(4) })
+        }
+
+        val scrim = FrameLayout(this).apply {
+            setBackgroundColor(Color.parseColor("#BF000000"))
+            isClickable = true
+            setOnClickListener { /* eat */ }
+            addView(card, FrameLayout.LayoutParams(
+                dp(320), FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.CENTER
+            ).apply { leftMargin = dp(16); rightMargin = dp(16) })
+        }
+
+        val params = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+            PixelFormat.TRANSLUCENT
+        ).apply { gravity = Gravity.TOP or Gravity.START }
+
+        runCatching {
+            windowManager?.addView(scrim, params)
+            nudgeModal = scrim
+            nudgeModalShown = true
+        }
     }
 
     private fun nudgeCardBackground(): GradientDrawable =

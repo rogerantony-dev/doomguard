@@ -17,8 +17,14 @@ export type DoomguardStatus = {
   todaySeconds: number;
   /** Current behavior: "guilt" counts reels, "block" bounces you out. */
   mode: DoomguardMode;
-  /** User-set daily limit, in minutes — when crossed, surfaces turn red. */
+  /** User-set daily limit, in minutes. When crossed, surfaces turn red. */
   limitMinutes: number;
+  /** Guilt mode: auto-block reels once the daily limit is hit. */
+  blockAtLimit: boolean;
+  /** No snooze / no switching back once blocked. */
+  strictMode: boolean;
+  /** Right now, a guilt user is over their limit and reels are being bounced. */
+  autoBlocked: boolean;
 };
 
 export type DoomguardDay = {
@@ -36,6 +42,8 @@ type NativeModule = {
   getStatus(): DoomguardStatus;
   setMode(mode: DoomguardMode): void;
   setLimit(minutes: number): void;
+  setBlockAtLimit(enabled: boolean): void;
+  setStrict(enabled: boolean): void;
   getHistory(): DoomguardDay[];
   consumeOpenCats(): boolean;
 };
@@ -71,6 +79,24 @@ export function setLimit(minutes: number): void {
   if (!nativeModule) return;
   try {
     nativeModule.setLimit(minutes);
+  } catch {
+    // no-op if the native module isn't available
+  }
+}
+
+export function setBlockAtLimit(enabled: boolean): void {
+  if (!nativeModule) return;
+  try {
+    nativeModule.setBlockAtLimit(enabled);
+  } catch {
+    // no-op if the native module isn't available
+  }
+}
+
+export function setStrict(enabled: boolean): void {
+  if (!nativeModule) return;
+  try {
+    nativeModule.setStrict(enabled);
   } catch {
     // no-op if the native module isn't available
   }

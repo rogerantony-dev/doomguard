@@ -21,8 +21,10 @@ import { Brand, C, Kicker } from "./components/console";
 import {
   consumeOpenCats,
   getStatus,
+  setBlockAtLimit,
   setLimit,
   setMode,
+  setStrict,
   type DoomguardMode,
   type DoomguardStatus,
 } from "./modules/doomguardnative";
@@ -130,6 +132,9 @@ export default function App() {
   const count = status?.todayCount ?? 0;
   const shorts = status?.todayShorts ?? 0;
   const limit = status?.limitMinutes ?? 60;
+  const blockAtLimit = status?.blockAtLimit ?? true;
+  const strict = status?.strictMode ?? false;
+  const autoBlocked = status?.autoBlocked ?? false;
 
   const changeMode = useCallback(
     (next: DoomguardMode) => {
@@ -155,6 +160,22 @@ export default function App() {
     (minutes: number) => {
       setLimit(minutes);
       setLimitPickerOpen(false);
+      refresh();
+    },
+    [refresh]
+  );
+
+  const changeBlockAtLimit = useCallback(
+    (enabled: boolean) => {
+      setBlockAtLimit(enabled);
+      refresh();
+    },
+    [refresh]
+  );
+
+  const changeStrict = useCallback(
+    (enabled: boolean) => {
+      setStrict(enabled);
       refresh();
     },
     [refresh]
@@ -191,6 +212,7 @@ export default function App() {
                 count={count}
                 shorts={shorts}
                 limit={limit}
+                autoBlocked={autoBlocked}
                 onChangeMode={changeMode}
                 onOpenHistory={() => setScreen("history")}
                 onOpenCats={() => setCatsOpen(true)}
@@ -216,7 +238,11 @@ export default function App() {
       <LimitPicker
         visible={limitPickerOpen}
         value={limit}
+        blockAtLimit={blockAtLimit}
+        strict={strict}
         onPick={changeLimit}
+        onToggleBlock={changeBlockAtLimit}
+        onToggleStrict={changeStrict}
         onClose={() => setLimitPickerOpen(false)}
       />
     </View>
@@ -241,6 +267,7 @@ function Dashboard({
   count,
   shorts,
   limit,
+  autoBlocked,
   onChangeMode,
   onOpenHistory,
   onOpenCats,
@@ -250,6 +277,7 @@ function Dashboard({
   count: number;
   shorts: number;
   limit: number;
+  autoBlocked: boolean;
   onChangeMode: (mode: DoomguardMode) => void;
   onOpenHistory: () => void;
   onOpenCats: () => void;
@@ -258,19 +286,67 @@ function Dashboard({
 
   return (
     <View className="grow">
-      {mode === "guilt" ? (
+      {autoBlocked ? (
+        <AutoBlockedHero minutes={minutes} limit={limit} />
+      ) : mode === "guilt" ? (
         <GuiltHero minutes={minutes} count={count} shorts={shorts} limit={limit} />
       ) : (
         <BlockHero count={count} />
       )}
 
-      <View className="mt-8">
-        <ModeSwitch mode={mode} onChangeMode={onChangeMode} />
-      </View>
+      {autoBlocked ? (
+        <View className="mt-8 flex-row items-center justify-center gap-2 rounded-2xl bg-panel py-4">
+          <Ionicons name="lock-closed" size={15} color={C.dim} />
+          <Text className="text-[14px] font-medium text-ash">
+            Blocked · unlocks at midnight
+          </Text>
+        </View>
+      ) : (
+        <View className="mt-8">
+          <ModeSwitch mode={mode} onChangeMode={onChangeMode} />
+        </View>
+      )}
 
       <View className="mt-auto flex-row gap-3 pt-6">
         <TrayButton icon="paw" label="Cats" onPress={onOpenCats} />
         <TrayButton icon="bar-chart" label="History" onPress={onOpenHistory} />
+      </View>
+    </View>
+  );
+}
+
+function AutoBlockedHero({ minutes, limit }: { minutes: number; limit: number }) {
+  const wasted =
+    minutes < 60 ? `${minutes}m` : `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
+  return (
+    <View className="mt-14">
+      <View
+        className="h-[72px] w-[72px] items-center justify-center rounded-full"
+        style={{ backgroundColor: "rgba(56,199,134,0.14)" }}
+      >
+        <Ionicons name="shield-checkmark" size={32} color={C.toxic} />
+      </View>
+      <Kicker color={C.toxic} style={{ marginTop: 20 }}>
+        Limit reached · blocked
+      </Kicker>
+      <Text
+        className="mt-3 text-[32px] font-semibold text-bone"
+        style={{ letterSpacing: -0.6, lineHeight: 36 }}
+      >
+        Walled off{"\n"}till midnight.
+      </Text>
+      <Text className="mt-2.5 text-[15px] leading-snug text-ash">
+        You hit your {fmtLimit(limit)} limit today. Every reel and short gets
+        bounced for the rest of the day.
+      </Text>
+      <View className="mt-7 flex-row items-baseline gap-2.5">
+        <Text
+          className="text-[34px] font-semibold"
+          style={{ color: OVER, letterSpacing: -0.8, fontVariant: ["tabular-nums"] }}
+        >
+          {wasted}
+        </Text>
+        <Text className="text-[14px] text-ash">wasted today</Text>
       </View>
     </View>
   );
@@ -419,12 +495,20 @@ function LimitChip({ value, onPress }: { value: number; onPress: () => void }) {
 function LimitPicker({
   visible,
   value,
+  blockAtLimit,
+  strict,
   onPick,
+  onToggleBlock,
+  onToggleStrict,
   onClose,
 }: {
   visible: boolean;
   value: number;
+  blockAtLimit: boolean;
+  strict: boolean;
   onPick: (minutes: number) => void;
+  onToggleBlock: (enabled: boolean) => void;
+  onToggleStrict: (enabled: boolean) => void;
   onClose: () => void;
 }) {
   return (
@@ -433,7 +517,7 @@ function LimitPicker({
         <Pressable onPress={() => {}} className="gap-1.5 rounded-[28px] bg-panel p-6">
           <Text className="text-[21px] font-semibold text-bone">Daily limit</Text>
           <Text className="text-[14px] leading-snug text-ash">
-            Cross it and the wall, pill, and widget turn red.
+            Cross it and Doomguard blocks the reels.
           </Text>
           <View className="mt-4 flex-row flex-wrap justify-between gap-y-2.5">
             {LIMIT_OPTIONS.map((m) => {
@@ -458,9 +542,90 @@ function LimitPicker({
               );
             })}
           </View>
+
+          <View className="mt-4">
+            <ToggleRow
+              title="Block at limit"
+              body="Wall reels off once you hit it. Snooze 5 min at a time if you must."
+              value={blockAtLimit}
+              onToggle={onToggleBlock}
+              first
+            />
+            <ToggleRow
+              title="Strict mode"
+              body="No snooze. Reels stay locked until midnight."
+              value={strict}
+              onToggle={onToggleStrict}
+              lock
+            />
+          </View>
         </Pressable>
       </Pressable>
     </Modal>
+  );
+}
+
+function ToggleRow({
+  title,
+  body,
+  value,
+  onToggle,
+  first,
+  lock,
+}: {
+  title: string;
+  body: string;
+  value: boolean;
+  onToggle: (enabled: boolean) => void;
+  first?: boolean;
+  lock?: boolean;
+}) {
+  return (
+    <View
+      className={`flex-row items-center justify-between gap-4 border-t border-bone/10 py-4 ${
+        first ? "mt-1" : ""
+      }`}
+    >
+      <View className="flex-1">
+        <View className="flex-row items-center gap-1.5">
+          <Text className="text-[15px] font-semibold text-bone">{title}</Text>
+          {lock ? <Ionicons name="lock-closed" size={13} color={C.dim} /> : null}
+        </View>
+        <Text className="mt-1 text-[12.5px] leading-snug text-ash">{body}</Text>
+      </View>
+      <Switch value={value} onToggle={onToggle} />
+    </View>
+  );
+}
+
+function Switch({
+  value,
+  onToggle,
+}: {
+  value: boolean;
+  onToggle: (enabled: boolean) => void;
+}) {
+  return (
+    <Pressable
+      onPress={() => onToggle(!value)}
+      style={{
+        width: 46,
+        height: 27,
+        borderRadius: 999,
+        backgroundColor: value ? C.toxic : "#3A3A35",
+        justifyContent: "center",
+      }}
+    >
+      <View
+        style={{
+          width: 21,
+          height: 21,
+          borderRadius: 999,
+          backgroundColor: "#FFFFFF",
+          marginLeft: value ? 22 : 3,
+        }}
+      />
+    </Pressable>
   );
 }
 
