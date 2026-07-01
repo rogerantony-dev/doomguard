@@ -13,10 +13,10 @@ import {
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import * as IntentLauncher from "expo-intent-launcher";
 
 import { CatGallery } from "./components/CatGallery";
 import { HistoryScreen } from "./components/HistoryScreen";
+import { OnboardingFlow } from "./components/Onboarding";
 import { Brand, C, Kicker } from "./components/console";
 import {
   consumeOpenCats,
@@ -27,25 +27,6 @@ import {
   type DoomguardStatus,
 } from "./modules/doomguardnative";
 import "./global.css";
-
-const ANDROID_PACKAGE = "com.rogerantony.doomguard";
-
-function openAccessibilitySettings() {
-  IntentLauncher.startActivityAsync(
-    "android.settings.ACCESSIBILITY_SETTINGS"
-  ).catch(() => {});
-}
-
-function openOverlaySettings() {
-  IntentLauncher.startActivityAsync(
-    "android.settings.action.MANAGE_OVERLAY_PERMISSION",
-    { data: `package:${ANDROID_PACKAGE}` }
-  ).catch(() => {
-    IntentLauncher.startActivityAsync(
-      "android.settings.action.MANAGE_OVERLAY_PERMISSION"
-    ).catch(() => {});
-  });
-}
 
 /** Matches the native pill curve: calm under ~10 min, fully red by ~50. */
 function rednessForMinutes(minutes: number): number {
@@ -187,23 +168,23 @@ export default function App() {
     <View className="flex-1 bg-ink">
       <SafeAreaView className="flex-1">
         <StatusBar style="light" />
-        <ScrollView className="flex-1" contentContainerStyle={{ flexGrow: 1 }}>
-          <View className="grow px-6 pb-7 pt-4">
-            <View className="flex-row items-center justify-between">
-              <Brand on={allReady} />
-              {allReady && Platform.OS === "android" ? (
-                <LimitChip value={limit} onPress={() => setLimitPickerOpen(true)} />
-              ) : null}
+        {Platform.OS !== "android" ? (
+          <View className="grow px-6 pt-4">
+            <Brand on={false} />
+            <View className="mt-10 rounded-3xl bg-panel p-6">
+              <Text className="text-[15px] leading-6 text-ash">
+                The Reel counter is Android only. It relies on Android's overlay
+                and accessibility features. Install the Android build to use it.
+              </Text>
             </View>
-
-            {Platform.OS !== "android" ? (
-              <View className="mt-10 rounded-3xl bg-panel p-6">
-                <Text className="text-[15px] leading-6 text-ash">
-                  The Reel counter is Android only. It relies on Android's overlay
-                  and accessibility features. Install the Android build to use it.
-                </Text>
+          </View>
+        ) : allReady ? (
+          <ScrollView className="flex-1" contentContainerStyle={{ flexGrow: 1 }}>
+            <View className="grow px-6 pb-7 pt-4">
+              <View className="flex-row items-center justify-between">
+                <Brand on={true} />
+                <LimitChip value={limit} onPress={() => setLimitPickerOpen(true)} />
               </View>
-            ) : allReady ? (
               <Dashboard
                 mode={mode}
                 seconds={seconds}
@@ -214,14 +195,14 @@ export default function App() {
                 onOpenHistory={() => setScreen("history")}
                 onOpenCats={() => setCatsOpen(true)}
               />
-            ) : (
-              <Onboarding
-                overlayDone={overlayDone}
-                accessibilityDone={accessibilityDone}
-              />
-            )}
-          </View>
-        </ScrollView>
+            </View>
+          </ScrollView>
+        ) : (
+          <OnboardingFlow
+            overlayDone={overlayDone}
+            accessibilityDone={accessibilityDone}
+          />
+        )}
       </SafeAreaView>
 
       <PushThroughModal
@@ -241,14 +222,6 @@ export default function App() {
     </View>
   );
 }
-
-const PRIVACY = (
-  <Text className="text-[12.5px] leading-5 text-dim">
-    Doomguard only reads Instagram &amp; YouTube's screen,{" "}
-    <Text className="font-medium text-ash">nothing else</Text>. Your count lives
-    only on this device.
-  </Text>
-);
 
 const WASTE = "#E0913C"; // time burned (guilt)
 const OVER = "#D2542F"; // past the limit
@@ -609,101 +582,3 @@ function PushThroughModal({
   );
 }
 
-function Onboarding({
-  overlayDone,
-  accessibilityDone,
-}: {
-  overlayDone: boolean;
-  accessibilityDone: boolean;
-}) {
-  const armed = (overlayDone ? 1 : 0) + (accessibilityDone ? 1 : 0);
-  return (
-    <View className="grow">
-      <View className="mt-9">
-        <Kicker>{`Setup · ${armed} of 2`}</Kicker>
-        <Text className="mt-3.5 text-[27px] font-semibold text-bone" style={{ letterSpacing: -0.5 }}>
-          Two quick permissions.
-        </Text>
-        <Text className="mt-2.5 text-[15px] leading-snug text-ash">
-          Doomguard times the reels and shorts you watch each day.
-        </Text>
-      </View>
-
-      <View className="mt-9">
-        <SetupStep
-          index={1}
-          title="Allow drawing over apps"
-          body="Lets the counter float on top of Instagram."
-          action="Open overlay permission"
-          onPress={openOverlaySettings}
-          done={overlayDone}
-          first
-        />
-        <SetupStep
-          index={2}
-          title="Enable the accessibility service"
-          body="Find “Doomguard Reel Counter” in the list and turn it on. This is how the app knows when you're watching Reels."
-          action="Open accessibility settings"
-          onPress={openAccessibilitySettings}
-          done={accessibilityDone}
-        />
-      </View>
-
-      <View className="mt-auto pt-8">{PRIVACY}</View>
-    </View>
-  );
-}
-
-function SetupStep({
-  index,
-  title,
-  body,
-  action,
-  onPress,
-  done,
-  first,
-}: {
-  index: number;
-  title: string;
-  body: string;
-  action: string;
-  onPress: () => void;
-  done: boolean;
-  first?: boolean;
-}) {
-  return (
-    <View
-      className={`flex-row gap-4 border-b border-bone/10 py-6 ${first ? "border-t" : ""}`}
-    >
-      <View
-        className={`mt-0.5 h-7 w-7 items-center justify-center rounded-full ${
-          done ? "bg-toxic" : "border border-bone/15"
-        }`}
-      >
-        {done ? (
-          <Ionicons name="checkmark" size={16} color={C.ink} />
-        ) : (
-          <Text className="text-[13px] font-semibold text-ash">{index}</Text>
-        )}
-      </View>
-      <View className="flex-1">
-        <Text className="text-[16.5px] font-semibold text-bone">{title}</Text>
-        <Text className="mt-1.5 text-[13.5px] leading-5 text-ash">{body}</Text>
-        {done ? (
-          <View className="mt-3 flex-row items-center gap-1.5">
-            <Ionicons name="checkmark-circle" size={16} color={C.toxic} />
-            <Text className="text-[13px] font-semibold text-toxic">Enabled</Text>
-          </View>
-        ) : (
-          <Pressable
-            onPress={onPress}
-            className="mt-3 flex-row items-center gap-1.5 active:opacity-60"
-          >
-            <Text className="text-[14px] font-semibold text-bone">{action}</Text>
-            <Ionicons name="chevron-forward" size={15} color={C.bone} />
-          </Pressable>
-        )}
-      </View>
-    </View>
-  );
-}
