@@ -1,6 +1,5 @@
 import { type ReactNode, useRef, useState } from "react";
 import {
-  Animated,
   Image,
   Pressable,
   ScrollView,
@@ -8,6 +7,15 @@ import {
   View,
   useWindowDimensions,
 } from "react-native";
+import Animated, {
+  Extrapolation,
+  interpolate,
+  useAnimatedRef,
+  useAnimatedScrollHandler,
+  useAnimatedStyle,
+  useSharedValue,
+  type SharedValue,
+} from "react-native-reanimated";
 import { Ionicons } from "@expo/vector-icons";
 import Svg, { Circle } from "react-native-svg";
 import * as IntentLauncher from "expo-intent-launcher";
@@ -63,8 +71,11 @@ export function OnboardingFlow({
   const { width } = useWindowDimensions();
   const [page, setPage] = useState(0);
   const [height, setHeight] = useState(0);
-  const ref = useRef<ScrollView>(null);
-  const scrollX = useRef(new Animated.Value(0)).current;
+  const ref = useAnimatedRef<Animated.ScrollView>();
+  const scrollX = useSharedValue(0);
+  const scrollHandler = useAnimatedScrollHandler((e) => {
+    scrollX.value = e.contentOffset.x;
+  });
 
   const goTo = (i: number) => {
     const c = Math.max(0, Math.min(PAGES - 1, i));
@@ -104,16 +115,13 @@ export function OnboardingFlow({
   return (
     <View className="flex-1">
       <View className="flex-1" onLayout={(e) => setHeight(e.nativeEvent.layout.height)}>
-        <ScrollView
+        <Animated.ScrollView
           ref={ref}
           horizontal
           pagingEnabled
           showsHorizontalScrollIndicator={false}
           scrollEventThrottle={16}
-          onScroll={Animated.event(
-            [{ nativeEvent: { contentOffset: { x: scrollX } } }],
-            { useNativeDriver: false }
-          )}
+          onScroll={scrollHandler}
           onMomentumScrollEnd={(e) =>
             setPage(Math.round(e.nativeEvent.contentOffset.x / width))
           }
@@ -281,7 +289,7 @@ export function OnboardingFlow({
             </View>
           </View>
         </View>
-        </ScrollView>
+        </Animated.ScrollView>
       </View>
 
       <View className="px-6 pb-3 pt-2">
@@ -467,31 +475,36 @@ function Header({ index, onSkip }: { index: number; onSkip: () => void }) {
   );
 }
 
-/** Progress dots that morph off the scroll offset: the active dot elongates and
- *  brightens as you swipe, tracking the gesture instead of snapping per page. */
-function MorphDots({ scrollX, width }: { scrollX: Animated.Value; width: number }) {
+/** Progress dots that morph off the scroll offset (on the UI thread, so the swipe
+ *  stays smooth): the active dot elongates and brightens as you drag. */
+function MorphDots({ scrollX, width }: { scrollX: SharedValue<number>; width: number }) {
   return (
     <View className="flex-row justify-center gap-1.5">
-      {Array.from({ length: PAGES }).map((_, i) => {
-        const range = [(i - 1) * width, i * width, (i + 1) * width];
-        const dotWidth = scrollX.interpolate({
-          inputRange: range,
-          outputRange: [7, 22, 7],
-          extrapolate: "clamp",
-        });
-        const opacity = scrollX.interpolate({
-          inputRange: range,
-          outputRange: [0.32, 1, 0.32],
-          extrapolate: "clamp",
-        });
-        return (
-          <Animated.View
-            key={i}
-            style={{ height: 7, borderRadius: 4, width: dotWidth, opacity, backgroundColor: C.bone }}
-          />
-        );
-      })}
+      {Array.from({ length: PAGES }).map((_, i) => (
+        <MorphDot key={i} index={i} scrollX={scrollX} width={width} />
+      ))}
     </View>
+  );
+}
+
+function MorphDot({
+  index,
+  scrollX,
+  width,
+}: {
+  index: number;
+  scrollX: SharedValue<number>;
+  width: number;
+}) {
+  const style = useAnimatedStyle(() => {
+    const range = [(index - 1) * width, index * width, (index + 1) * width];
+    return {
+      width: interpolate(scrollX.value, range, [7, 22, 7], Extrapolation.CLAMP),
+      opacity: interpolate(scrollX.value, range, [0.32, 1, 0.32], Extrapolation.CLAMP),
+    };
+  });
+  return (
+    <Animated.View style={[{ height: 7, borderRadius: 4, backgroundColor: C.bone }, style]} />
   );
 }
 
