@@ -1,5 +1,6 @@
 import { type ReactNode, useRef, useState } from "react";
 import {
+  Animated,
   Image,
   Pressable,
   ScrollView,
@@ -63,6 +64,7 @@ export function OnboardingFlow({
   const [page, setPage] = useState(0);
   const [height, setHeight] = useState(0);
   const ref = useRef<ScrollView>(null);
+  const scrollX = useRef(new Animated.Value(0)).current;
 
   const goTo = (i: number) => {
     const c = Math.max(0, Math.min(PAGES - 1, i));
@@ -100,16 +102,22 @@ export function OnboardingFlow({
   };
 
   return (
-    <View className="flex-1" onLayout={(e) => setHeight(e.nativeEvent.layout.height)}>
-      <ScrollView
-        ref={ref}
-        horizontal
-        pagingEnabled
-        showsHorizontalScrollIndicator={false}
-        onMomentumScrollEnd={(e) =>
-          setPage(Math.round(e.nativeEvent.contentOffset.x / width))
-        }
-      >
+    <View className="flex-1">
+      <View className="flex-1" onLayout={(e) => setHeight(e.nativeEvent.layout.height)}>
+        <ScrollView
+          ref={ref}
+          horizontal
+          pagingEnabled
+          showsHorizontalScrollIndicator={false}
+          scrollEventThrottle={16}
+          onScroll={Animated.event(
+            [{ nativeEvent: { contentOffset: { x: scrollX } } }],
+            { useNativeDriver: false }
+          )}
+          onMomentumScrollEnd={(e) =>
+            setPage(Math.round(e.nativeEvent.contentOffset.x / width))
+          }
+        >
         {FEATURES.map((f, i) => (
           <View key={i} style={{ width, height }} className="px-6 pb-3 pt-3">
             <Header index={i} onSkip={() => goTo(PAGES - 1)} />
@@ -129,10 +137,6 @@ export function OnboardingFlow({
                   {f.sub}
                 </Text>
               </View>
-            </View>
-            <View className="gap-5">
-              <Dots active={i} />
-              <Primary label={f.cta} onPress={() => goTo(i + 1)} />
             </View>
           </View>
         ))}
@@ -168,10 +172,6 @@ export function OnboardingFlow({
                 onPress={() => chooseMode("block")}
               />
             </View>
-          </View>
-          <View className="gap-5">
-            <Dots active={5} />
-            <Primary label="Continue" onPress={() => goTo(selMode === "block" ? 7 : 6)} />
           </View>
         </View>
 
@@ -244,10 +244,6 @@ export function OnboardingFlow({
               </View>
             )}
           </View>
-          <View className="gap-5">
-            <Dots active={6} />
-            <Primary label="Continue" onPress={() => goTo(7)} />
-          </View>
         </View>
 
         <View style={{ width, height }} className="px-6 pb-3 pt-3">
@@ -284,11 +280,25 @@ export function OnboardingFlow({
               />
             </View>
           </View>
-          <View className="gap-5 pb-1">
-            <Dots active={PAGES - 1} />
-          </View>
         </View>
-      </ScrollView>
+        </ScrollView>
+      </View>
+
+      <View className="px-6 pb-3 pt-2">
+        <MorphDots scrollX={scrollX} width={width} />
+        {page < PAGES - 1 ? (
+          <View className="mt-5">
+            <Primary
+              label={page === 0 ? "Get started" : page <= 4 ? "Next" : "Continue"}
+              onPress={
+                page === 5
+                  ? () => goTo(selMode === "block" ? 7 : 6)
+                  : () => goTo(page + 1)
+              }
+            />
+          </View>
+        ) : null}
+      </View>
     </View>
   );
 }
@@ -457,20 +467,30 @@ function Header({ index, onSkip }: { index: number; onSkip: () => void }) {
   );
 }
 
-function Dots({ active }: { active: number }) {
+/** Progress dots that morph off the scroll offset: the active dot elongates and
+ *  brightens as you swipe, tracking the gesture instead of snapping per page. */
+function MorphDots({ scrollX, width }: { scrollX: Animated.Value; width: number }) {
   return (
     <View className="flex-row justify-center gap-1.5">
-      {Array.from({ length: PAGES }).map((_, i) => (
-        <View
-          key={i}
-          style={{
-            height: 7,
-            borderRadius: 4,
-            width: i === active ? 22 : 7,
-            backgroundColor: i === active ? C.bone : C.panelhi,
-          }}
-        />
-      ))}
+      {Array.from({ length: PAGES }).map((_, i) => {
+        const range = [(i - 1) * width, i * width, (i + 1) * width];
+        const dotWidth = scrollX.interpolate({
+          inputRange: range,
+          outputRange: [7, 22, 7],
+          extrapolate: "clamp",
+        });
+        const opacity = scrollX.interpolate({
+          inputRange: range,
+          outputRange: [0.32, 1, 0.32],
+          extrapolate: "clamp",
+        });
+        return (
+          <Animated.View
+            key={i}
+            style={{ height: 7, borderRadius: 4, width: dotWidth, opacity, backgroundColor: C.bone }}
+          />
+        );
+      })}
     </View>
   );
 }
