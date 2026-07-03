@@ -62,7 +62,7 @@ export function CatGallery({
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Animated.View style={{ flex: 1, transform: [{ translateY }] }} className="bg-ink">
         <SafeAreaView className="flex-1" edges={["top", "bottom"]}>
-        <View {...pan.panHandlers} className="px-6 pt-2">
+        <View {...pan.panHandlers} className="px-6 pb-1 pt-2">
           <View
             style={{
               alignSelf: "center",
@@ -72,21 +72,20 @@ export function CatGallery({
               backgroundColor: C.panelhi,
             }}
           />
-          <View className="mt-3 flex-row items-start justify-between">
-            <View className="flex-1 gap-1.5">
-              <Text className="text-[26px] font-semibold text-bone" style={{ letterSpacing: -0.6 }}>
-                Cats, not reels
-              </Text>
-              <Text className="text-[14px] text-ash">
-                Rest your eyes on something better.
-              </Text>
-            </View>
-            <Pressable
-              onPress={onClose}
-              className="h-10 w-10 items-center justify-center rounded-full bg-panel active:opacity-70"
-            >
-              <Ionicons name="close" size={22} color={C.ash} />
-            </Pressable>
+          <Pressable
+            onPress={onClose}
+            hitSlop={12}
+            className="-ml-1 mt-2 h-10 w-10 items-center justify-center rounded-full active:opacity-60"
+          >
+            <Ionicons name="chevron-down" size={24} color={C.bone} />
+          </Pressable>
+          <View className="mt-1 gap-1.5">
+            <Text className="text-[26px] font-semibold text-bone" style={{ letterSpacing: -0.6 }}>
+              Cats, not reels
+            </Text>
+            <Text className="text-[14px] text-ash">
+              Rest your eyes on something better.
+            </Text>
           </View>
         </View>
 

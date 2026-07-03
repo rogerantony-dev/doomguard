@@ -137,7 +137,7 @@ export function HistoryScreen({
         <SafeAreaView className="flex-1">
           <StatusBar style="light" />
 
-          <View {...pan.panHandlers} className="px-5 pb-1 pt-2">
+          <View {...pan.panHandlers} className="px-6 pb-1 pt-2">
             <View
               style={{
                 alignSelf: "center",
@@ -154,14 +154,13 @@ export function HistoryScreen({
             >
               <Ionicons name="chevron-down" size={24} color={C.bone} />
             </Pressable>
+            <Text className="mt-1 text-[26px] font-semibold text-bone" style={{ letterSpacing: -0.6 }}>
+              History
+            </Text>
           </View>
 
         <ScrollView className="flex-1" contentContainerStyle={{ paddingBottom: 36 }}>
-          <View className="gap-5 px-6 py-3">
-            <Text className="text-[26px] font-semibold text-bone" style={{ letterSpacing: -0.6 }}>
-              History
-            </Text>
-
+          <View className="gap-5 px-6 pb-3 pt-1">
             <View className="gap-2.5">
               <Segmented<HistoryRange>
                 options={[
