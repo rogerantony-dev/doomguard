@@ -14,6 +14,8 @@ import { StatusBar } from "expo-status-bar";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 
+import Animated, { SlideInDown } from "react-native-reanimated";
+
 import { CatGallery } from "./components/CatGallery";
 import { HistoryScreen } from "./components/HistoryScreen";
 import { OnboardingFlow } from "./components/Onboarding";
@@ -512,8 +514,9 @@ function LimitPicker({
   onClose: () => void;
 }) {
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+    <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
       <Pressable className="flex-1 justify-end bg-black/60 p-4" onPress={onClose}>
+        <Animated.View entering={SlideInDown.duration(200)}>
         <Pressable onPress={() => {}} className="gap-1.5 rounded-[28px] bg-panel p-6">
           <Text className="text-[21px] font-semibold text-bone">Daily limit</Text>
           <Text className="text-[14px] leading-snug text-ash">
@@ -560,6 +563,7 @@ function LimitPicker({
             />
           </View>
         </Pressable>
+        </Animated.View>
       </Pressable>
     </Modal>
   );
@@ -712,10 +716,11 @@ function PushThroughModal({
     <Modal
       visible={visible}
       transparent
-      animationType="fade"
+      animationType="none"
       onRequestClose={onKeepBlocking}
     >
       <View className="flex-1 justify-end bg-black/60 p-4">
+        <Animated.View entering={SlideInDown.duration(200)}>
         <View className="gap-5 rounded-[28px] bg-panel p-6">
           <View className="gap-2">
             <Kicker>Leaving block mode</Kicker>
@@ -742,6 +747,7 @@ function PushThroughModal({
             </Pressable>
           </View>
         </View>
+        </Animated.View>
       </View>
     </Modal>
   );

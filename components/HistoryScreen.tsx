@@ -4,7 +4,7 @@ import { StatusBar } from "expo-status-bar";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import Svg, { Line, Rect } from "react-native-svg";
-import Animated, { FadeInDown } from "react-native-reanimated";
+import Animated, { FadeIn } from "react-native-reanimated";
 
 import { C, Kicker, Segmented } from "./console";
 import { buildView, type HistoryRange } from "./history";
@@ -137,7 +137,7 @@ export function HistoryScreen({ onBack }: { onBack: () => void }) {
             ) : (
               <Animated.View
                 key={`${range}-${metric}`}
-                entering={FadeInDown.duration(300).springify().damping(20)}
+                entering={FadeIn.duration(150)}
                 style={{ gap: 20 }}
               >
                 <View className="mt-2 flex-row">
