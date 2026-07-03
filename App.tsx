@@ -14,6 +14,8 @@ import { StatusBar } from "expo-status-bar";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 
+import Animated, { FadeIn, FadeOut, LinearTransition } from "react-native-reanimated";
+
 import { CatGallery } from "./components/CatGallery";
 import { HistoryScreen } from "./components/HistoryScreen";
 import { OnboardingFlow } from "./components/Onboarding";
@@ -253,6 +255,9 @@ const WASTE = "#E0913C"; // time burned (guilt)
 const OVER = "#D2542F"; // past the limit
 const LIMIT_OPTIONS = [15, 30, 45, 60, 90, 120];
 
+/** Shared spring so state swaps and size changes reflow continuously. */
+const FLOW = LinearTransition.springify().damping(22).stiffness(170);
+
 /** "45m" / "1h" / "1h 30m" from a minute count. */
 function fmtLimit(min: number): string {
   if (min < 60) return `${min}m`;
@@ -283,35 +288,43 @@ function Dashboard({
   onOpenCats: () => void;
 }) {
   const minutes = Math.floor(seconds / 60);
+  // Keying the hero by state makes guilt/block/auto-blocked cross-fade; the
+  // FLOW layout on each row reflows the rest so the swap feels continuous.
+  const heroKey = autoBlocked ? "blocked" : mode;
 
   return (
-    <View className="grow">
-      {autoBlocked ? (
-        <AutoBlockedHero minutes={minutes} limit={limit} />
-      ) : mode === "guilt" ? (
-        <GuiltHero minutes={minutes} count={count} shorts={shorts} limit={limit} />
-      ) : (
-        <BlockHero count={count} />
-      )}
+    <Animated.View style={{ flexGrow: 1 }} layout={FLOW}>
+      <Animated.View key={heroKey} entering={FadeIn.duration(260)} exiting={FadeOut.duration(150)}>
+        {autoBlocked ? (
+          <AutoBlockedHero minutes={minutes} limit={limit} />
+        ) : mode === "guilt" ? (
+          <GuiltHero minutes={minutes} count={count} shorts={shorts} limit={limit} />
+        ) : (
+          <BlockHero count={count} />
+        )}
+      </Animated.View>
 
-      {autoBlocked ? (
-        <View className="mt-8 flex-row items-center justify-center gap-2 rounded-2xl bg-panel py-4">
-          <Ionicons name="lock-closed" size={15} color={C.dim} />
-          <Text className="text-[14px] font-medium text-ash">
-            Blocked · unlocks at midnight
-          </Text>
-        </View>
-      ) : (
-        <View className="mt-8">
+      <Animated.View style={{ marginTop: 32 }} layout={FLOW}>
+        {autoBlocked ? (
+          <View className="flex-row items-center justify-center gap-2 rounded-2xl bg-panel py-4">
+            <Ionicons name="lock-closed" size={15} color={C.dim} />
+            <Text className="text-[14px] font-medium text-ash">
+              Blocked · unlocks at midnight
+            </Text>
+          </View>
+        ) : (
           <ModeSwitch mode={mode} onChangeMode={onChangeMode} />
-        </View>
-      )}
+        )}
+      </Animated.View>
 
-      <View className="mt-auto flex-row gap-3 pt-6">
+      <Animated.View
+        style={{ marginTop: "auto", flexDirection: "row", gap: 12, paddingTop: 24 }}
+        layout={FLOW}
+      >
         <TrayButton icon="paw" label="Cats" onPress={onOpenCats} />
         <TrayButton icon="bar-chart" label="History" onPress={onOpenHistory} />
-      </View>
-    </View>
+      </Animated.View>
+    </Animated.View>
   );
 }
 
@@ -423,18 +436,29 @@ function BlockHero({ count }: { count: number }) {
   );
 }
 
-/** The wall of wasted minutes: a budget container that fills amber, then overflows red. */
+/** The wall of wasted minutes: a budget container that fills amber, then overflows red.
+ *  Cells carry a layout spring so changing the limit reflows the grid, and overflow
+ *  blocks fade in as you cross the line. */
 function WasteWall({ minutes, limit }: { minutes: number; limit: number }) {
   const over = Math.max(0, minutes - limit);
   return (
-    <View style={styles.wall}>
+    <Animated.View style={styles.wall} layout={FLOW}>
       {Array.from({ length: limit }).map((_, i) => (
-        <View key={`b${i}`} style={[styles.cell, i < minutes ? styles.cellFill : styles.cellEmpty]} />
+        <Animated.View
+          key={`b${i}`}
+          layout={FLOW}
+          style={[styles.cell, i < minutes ? styles.cellFill : styles.cellEmpty]}
+        />
       ))}
       {Array.from({ length: over }).map((_, i) => (
-        <View key={`o${i}`} style={[styles.cell, styles.cellOver]} />
+        <Animated.View
+          key={`o${i}`}
+          entering={FadeIn.duration(280)}
+          layout={FLOW}
+          style={[styles.cell, styles.cellOver]}
+        />
       ))}
-    </View>
+    </Animated.View>
   );
 }
 
