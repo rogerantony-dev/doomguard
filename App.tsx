@@ -317,13 +317,10 @@ function Dashboard({
         )}
       </Animated.View>
 
-      <Animated.View
-        style={{ marginTop: "auto", flexDirection: "row", gap: 12, paddingTop: 24 }}
-        layout={FLOW}
-      >
+      <View style={{ marginTop: "auto", flexDirection: "row", gap: 12, paddingTop: 24 }}>
         <TrayButton icon="paw" label="Cats" onPress={onOpenCats} />
         <TrayButton icon="bar-chart" label="History" onPress={onOpenHistory} />
-      </Animated.View>
+      </View>
     </Animated.View>
   );
 }
