@@ -14,7 +14,11 @@ import { StatusBar } from "expo-status-bar";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 
-import Animated, { SlideInDown } from "react-native-reanimated";
+import Animated, {
+  SlideInDown,
+  useAnimatedStyle,
+  withTiming,
+} from "react-native-reanimated";
 
 import { CatGallery } from "./components/CatGallery";
 import { HistoryScreen } from "./components/HistoryScreen";
@@ -603,6 +607,8 @@ function ToggleRow({
   );
 }
 
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+
 function Switch({
   value,
   onToggle,
@@ -610,27 +616,27 @@ function Switch({
   value: boolean;
   onToggle: (enabled: boolean) => void;
 }) {
+  const track = useAnimatedStyle(() => ({
+    backgroundColor: withTiming(value ? C.toxic : "#3A3A35", { duration: 170 }),
+  }));
+  const knob = useAnimatedStyle(() => ({
+    transform: [{ translateX: withTiming(value ? 19 : 0, { duration: 170 }) }],
+  }));
   return (
-    <Pressable
+    <AnimatedPressable
       onPress={() => onToggle(!value)}
-      style={{
-        width: 46,
-        height: 27,
-        borderRadius: 999,
-        backgroundColor: value ? C.toxic : "#3A3A35",
-        justifyContent: "center",
-      }}
+      style={[
+        { width: 46, height: 27, borderRadius: 999, justifyContent: "center", paddingLeft: 3 },
+        track,
+      ]}
     >
-      <View
-        style={{
-          width: 21,
-          height: 21,
-          borderRadius: 999,
-          backgroundColor: "#FFFFFF",
-          marginLeft: value ? 22 : 3,
-        }}
+      <Animated.View
+        style={[
+          { width: 21, height: 21, borderRadius: 999, backgroundColor: "#FFFFFF" },
+          knob,
+        ]}
       />
-    </Pressable>
+    </AnimatedPressable>
   );
 }
 
