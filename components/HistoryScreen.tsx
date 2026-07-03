@@ -132,7 +132,7 @@ export function HistoryScreen({
   ).current;
 
   return (
-    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Animated.View style={{ flex: 1, transform: [{ translateY }] }} className="bg-ink">
         <SafeAreaView className="flex-1">
           <StatusBar style="light" />

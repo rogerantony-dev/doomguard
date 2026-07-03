@@ -1,6 +1,9 @@
+import { useRef } from "react";
 import {
+  Animated,
   Image,
   Modal,
+  PanResponder,
   Pressable,
   ScrollView,
   Text,
@@ -24,28 +27,67 @@ export function CatGallery({
   visible: boolean;
   onClose: () => void;
 }) {
-  const { width } = useWindowDimensions();
+  const { width, height: screenH } = useWindowDimensions();
   const tile = (width - PAGE_PADDING * 2 - GAP) / 2;
 
+  const dismissRef = useRef(screenH);
+  dismissRef.current = screenH;
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
+  const translateY = useRef(new Animated.Value(0)).current;
+  const pan = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, g) => g.dy > 6 && Math.abs(g.dy) > Math.abs(g.dx),
+      onPanResponderMove: (_, g) => {
+        if (g.dy > 0) translateY.setValue(g.dy);
+      },
+      onPanResponderRelease: (_, g) => {
+        if (g.dy > 130 || g.vy > 0.8) {
+          Animated.timing(translateY, {
+            toValue: dismissRef.current,
+            duration: 200,
+            useNativeDriver: true,
+          }).start(() => {
+            closeRef.current();
+            translateY.setValue(0);
+          });
+        } else {
+          Animated.spring(translateY, { toValue: 0, useNativeDriver: true }).start();
+        }
+      },
+    })
+  ).current;
+
   return (
-    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
-      <View className="flex-1 bg-ink">
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <Animated.View style={{ flex: 1, transform: [{ translateY }] }} className="bg-ink">
         <SafeAreaView className="flex-1" edges={["top", "bottom"]}>
-        <View className="flex-row items-start justify-between px-6 pb-3 pt-2">
-          <View className="flex-1 gap-1.5">
-            <Text className="text-[26px] font-semibold text-bone" style={{ letterSpacing: -0.6 }}>
-              Cats, not reels
-            </Text>
-            <Text className="text-[14px] text-ash">
-              Rest your eyes on something better.
-            </Text>
+        <View {...pan.panHandlers} className="px-6 pt-2">
+          <View
+            style={{
+              alignSelf: "center",
+              width: 40,
+              height: 5,
+              borderRadius: 3,
+              backgroundColor: C.panelhi,
+            }}
+          />
+          <View className="mt-3 flex-row items-start justify-between">
+            <View className="flex-1 gap-1.5">
+              <Text className="text-[26px] font-semibold text-bone" style={{ letterSpacing: -0.6 }}>
+                Cats, not reels
+              </Text>
+              <Text className="text-[14px] text-ash">
+                Rest your eyes on something better.
+              </Text>
+            </View>
+            <Pressable
+              onPress={onClose}
+              className="h-10 w-10 items-center justify-center rounded-full bg-panel active:opacity-70"
+            >
+              <Ionicons name="close" size={22} color={C.ash} />
+            </Pressable>
           </View>
-          <Pressable
-            onPress={onClose}
-            className="h-10 w-10 items-center justify-center rounded-full bg-panel active:opacity-70"
-          >
-            <Ionicons name="close" size={22} color={C.ash} />
-          </Pressable>
         </View>
 
         {CATS.length === 0 ? (
@@ -75,7 +117,7 @@ export function CatGallery({
           </ScrollView>
         )}
         </SafeAreaView>
-      </View>
+      </Animated.View>
     </Modal>
   );
 }
