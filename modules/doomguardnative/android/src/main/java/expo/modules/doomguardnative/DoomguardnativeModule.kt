@@ -80,7 +80,7 @@ class DoomguardnativeModule : Module() {
     "todayShorts" to 0,
     "todaySeconds" to 0,
     "mode" to "guilt",
-    "limitMinutes" to 60,
+    "limitMinutes" to 30,
     "blockAtLimit" to true,
     "strictMode" to false,
     "autoBlocked" to false,
@@ -92,9 +92,9 @@ class DoomguardnativeModule : Module() {
   private fun currentMode(context: Context): String =
     prefs(context).getString("mode", "guilt") ?: "guilt"
 
-  /** User-set daily limit, in minutes (default 60). */
+  /** User-set daily limit, in minutes (default 30). */
   private fun limitMinutes(context: Context): Int =
-    prefs(context).getInt("limitMinutes", 60).coerceIn(5, 240)
+    prefs(context).getInt("limitMinutes", 30).coerceIn(5, 240)
 
   /** Auto-block reels once the daily limit is hit (guilt mode). Default on. */
   private fun blockAtLimit(context: Context): Boolean =

@@ -85,7 +85,7 @@ export function OnboardingFlow({
 
   // Mode + its options are chosen on pages 6-7, persisted as you go.
   const [selMode, setSelMode] = useState<DoomguardMode>("guilt");
-  const [lim, setLim] = useState(60);
+  const [lim, setLim] = useState(30);
   const [blockLim, setBlockLim] = useState(true);
   const [strict, setStrictLocal] = useState(false);
 

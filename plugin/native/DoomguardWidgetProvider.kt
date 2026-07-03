@@ -36,7 +36,7 @@ class DoomguardWidgetProvider : AppWidgetProvider() {
     companion object {
         private const val PREFS = "doomguard_reels"
         /** Daily limit, in minutes — mirrors BUDGET on the in-app dashboard. */
-        private const val BUDGET_MIN = 60
+        private const val BUDGET_MIN = 30
 
         /**
          * Push the current counts to every placed widget. Safe to call from the

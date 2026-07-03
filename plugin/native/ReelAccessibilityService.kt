@@ -59,7 +59,7 @@ class ReelAccessibilityService : AccessibilityService() {
     private val debug = false
 
     /** Daily limit in minutes — user-set, read live from prefs (mirrors dashboard + widget). */
-    private fun limitMinutes(): Int = prefs.getInt("limitMinutes", 60).coerceIn(5, 240)
+    private fun limitMinutes(): Int = prefs.getInt("limitMinutes", 30).coerceIn(5, 240)
 
     private var windowManager: WindowManager? = null
     private var pill: View? = null

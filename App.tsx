@@ -137,7 +137,7 @@ export default function App() {
   const seconds = status?.todaySeconds ?? 0;
   const count = status?.todayCount ?? 0;
   const shorts = status?.todayShorts ?? 0;
-  const limit = status?.limitMinutes ?? 60;
+  const limit = status?.limitMinutes ?? 30;
   const blockAtLimit = status?.blockAtLimit ?? true;
   const strict = status?.strictMode ?? false;
   const autoBlocked = status?.autoBlocked ?? false;
