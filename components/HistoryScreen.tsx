@@ -1,5 +1,14 @@
 import React, { useMemo, useRef, useState } from "react";
-import { Pressable, ScrollView, Text, View } from "react-native";
+import {
+  Animated,
+  Modal,
+  PanResponder,
+  Pressable,
+  ScrollView,
+  Text,
+  View,
+  useWindowDimensions,
+} from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -51,7 +60,13 @@ function dayOfMonth(date: string): string {
   return String(Number(date.split("-")[2]));
 }
 
-export function HistoryScreen({ onBack }: { onBack: () => void }) {
+export function HistoryScreen({
+  visible,
+  onClose,
+}: {
+  visible: boolean;
+  onClose: () => void;
+}) {
   const [range, setRange] = useState<HistoryRange>("7d");
   const [metric, setMetric] = useState<Metric>("time");
 
@@ -85,20 +100,61 @@ export function HistoryScreen({ onBack }: { onBack: () => void }) {
       : String(busiest.count + busiest.shorts)
     : "—";
 
-  return (
-    <View className="flex-1 bg-ink">
-      <SafeAreaView className="flex-1">
-        <StatusBar style="light" />
+  // Swipe the header down to dismiss (native-driver translateY; the ScrollView
+  // below keeps its own scroll since the pan lives only on the header).
+  const { height: screenH } = useWindowDimensions();
+  const dismissRef = useRef(screenH);
+  dismissRef.current = screenH;
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
+  const translateY = useRef(new Animated.Value(0)).current;
+  const pan = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, g) => g.dy > 6 && Math.abs(g.dy) > Math.abs(g.dx),
+      onPanResponderMove: (_, g) => {
+        if (g.dy > 0) translateY.setValue(g.dy);
+      },
+      onPanResponderRelease: (_, g) => {
+        if (g.dy > 130 || g.vy > 0.8) {
+          Animated.timing(translateY, {
+            toValue: dismissRef.current,
+            duration: 200,
+            useNativeDriver: true,
+          }).start(() => {
+            closeRef.current();
+            translateY.setValue(0);
+          });
+        } else {
+          Animated.spring(translateY, { toValue: 0, useNativeDriver: true }).start();
+        }
+      },
+    })
+  ).current;
 
-        <View className="flex-row items-center px-5 pb-1 pt-3">
-          <Pressable
-            onPress={onBack}
-            hitSlop={12}
-            className="-ml-1 h-10 w-10 items-center justify-center rounded-full active:opacity-60"
-          >
-            <Ionicons name="arrow-back" size={23} color={C.bone} />
-          </Pressable>
-        </View>
+  return (
+    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
+      <Animated.View style={{ flex: 1, transform: [{ translateY }] }} className="bg-ink">
+        <SafeAreaView className="flex-1">
+          <StatusBar style="light" />
+
+          <View {...pan.panHandlers} className="px-5 pb-1 pt-2">
+            <View
+              style={{
+                alignSelf: "center",
+                width: 40,
+                height: 5,
+                borderRadius: 3,
+                backgroundColor: C.panelhi,
+              }}
+            />
+            <Pressable
+              onPress={onClose}
+              hitSlop={12}
+              className="-ml-1 mt-2 h-10 w-10 items-center justify-center rounded-full active:opacity-60"
+            >
+              <Ionicons name="chevron-down" size={24} color={C.bone} />
+            </Pressable>
+          </View>
 
         <ScrollView className="flex-1" contentContainerStyle={{ paddingBottom: 36 }}>
           <View className="gap-5 px-6 py-3">
@@ -178,7 +234,8 @@ export function HistoryScreen({ onBack }: { onBack: () => void }) {
           </View>
         </ScrollView>
       </SafeAreaView>
-    </View>
+      </Animated.View>
+    </Modal>
   );
 }
 

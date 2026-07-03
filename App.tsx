@@ -183,10 +183,6 @@ export default function App() {
     [refresh]
   );
 
-  if (screen === "history") {
-    return <HistoryScreen onBack={() => setScreen("home")} />;
-  }
-
   return (
     <View className="flex-1 bg-ink">
       <SafeAreaView className="flex-1">
@@ -236,6 +232,11 @@ export default function App() {
       />
 
       <CatGallery visible={catsOpen} onClose={() => setCatsOpen(false)} />
+
+      <HistoryScreen
+        visible={screen === "history"}
+        onClose={() => setScreen("home")}
+      />
 
       <LimitPicker
         visible={limitPickerOpen}
