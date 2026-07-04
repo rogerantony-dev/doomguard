@@ -346,7 +346,18 @@ class ReelAccessibilityService : AccessibilityService() {
 
     // --- Auto-block at the daily limit ----------------------------------------
     private fun blockAtLimit(): Boolean = prefs.getBoolean("blockAtLimit", true)
-    private fun strictMode(): Boolean = prefs.getBoolean("strictMode", false)
+    private fun strictMode(): Boolean {
+        if (!prefs.getBoolean("strictMode", false)) return false
+        // A turn-off requested while over the limit is queued for the next reset
+        // so strict can't be flipped off to escape a live block. Apply it once
+        // its day has arrived.
+        val offAt = prefs.getString("strictOffAt", null)
+        if (offAt != null && today() >= offAt) {
+            prefs.edit().putBoolean("strictMode", false).remove("strictOffAt").apply()
+            return false
+        }
+        return true
+    }
     private fun snoozing(): Boolean = System.currentTimeMillis() < prefs.getLong("snoozeUntil", 0L)
 
     /** Guilt user is over the daily limit (auto-block on) and not inside a snooze. */

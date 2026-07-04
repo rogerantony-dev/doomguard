@@ -23,6 +23,11 @@ export type DoomguardStatus = {
   blockAtLimit: boolean;
   /** No snooze / no switching back once blocked. */
   strictMode: boolean;
+  /**
+   * Strict is still enforced today, but the user asked to turn it off after
+   * hitting the limit, so it will flip off at the next daily reset.
+   */
+  strictOffPending: boolean;
   /** Right now, a guilt user is over their limit and reels are being bounced. */
   autoBlocked: boolean;
 };

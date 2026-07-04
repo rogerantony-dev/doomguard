@@ -6,6 +6,10 @@ import android.text.TextUtils
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 import org.json.JSONObject
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Date
+import java.util.Locale
 
 /**
  * Reports the live state of the two permissions the Reel counter needs, plus
@@ -32,6 +36,7 @@ class DoomguardnativeModule : Module() {
         "limitMinutes" to limitMinutes(context),
         "blockAtLimit" to blockAtLimit(context),
         "strictMode" to strictMode(context),
+        "strictOffPending" to strictOffPending(context),
         "autoBlocked" to autoBlocked(context),
       )
     }
@@ -54,7 +59,20 @@ class DoomguardnativeModule : Module() {
 
     Function("setStrict") { enabled: Boolean ->
       val context = appContext.reactContext?.applicationContext ?: return@Function
-      prefs(context).edit().putBoolean("strictMode", enabled).apply()
+      val p = prefs(context)
+      when {
+        // Turning strict on is always immediate; cancel any queued turn-off.
+        enabled ->
+          p.edit().putBoolean("strictMode", true).remove("strictOffAt").apply()
+        // Already over today's limit: don't let strict be flipped off to escape
+        // a live block. Keep it on today and queue the turn-off for the next
+        // daily reset instead.
+        overLimit(context) ->
+          p.edit().putBoolean("strictMode", true).putString("strictOffAt", tomorrow()).apply()
+        // Under the limit: turning strict off takes effect right away.
+        else ->
+          p.edit().putBoolean("strictMode", false).remove("strictOffAt").apply()
+      }
     }
 
     Function("getHistory") {
@@ -83,6 +101,7 @@ class DoomguardnativeModule : Module() {
     "limitMinutes" to 30,
     "blockAtLimit" to true,
     "strictMode" to false,
+    "strictOffPending" to false,
     "autoBlocked" to false,
   )
 
@@ -100,9 +119,45 @@ class DoomguardnativeModule : Module() {
   private fun blockAtLimit(context: Context): Boolean =
     prefs(context).getBoolean("blockAtLimit", true)
 
-  /** No snooze / no switching back once blocked. Default off. */
-  private fun strictMode(context: Context): Boolean =
-    prefs(context).getBoolean("strictMode", false)
+  /**
+   * No snooze / no switching back once blocked. Default off. Applies any
+   * queued turn-off once its day has arrived (strict can only be flipped off
+   * for real at the next daily reset once you're over the limit).
+   */
+  private fun strictMode(context: Context): Boolean {
+    val p = prefs(context)
+    if (!p.getBoolean("strictMode", false)) return false
+    val offAt = p.getString("strictOffAt", null)
+    if (offAt != null && today() >= offAt) {
+      p.edit().putBoolean("strictMode", false).remove("strictOffAt").apply()
+      return false
+    }
+    return true
+  }
+
+  /** Strict is still on today, but a turn-off is queued for the next reset. */
+  private fun strictOffPending(context: Context): Boolean {
+    val p = prefs(context)
+    if (!p.getBoolean("strictMode", false)) return false
+    val offAt = p.getString("strictOffAt", null) ?: return false
+    return today() < offAt
+  }
+
+  /** Over today's daily limit. Stale (pre-rollover) days count as under. */
+  private fun overLimit(context: Context): Boolean {
+    val p = prefs(context)
+    if (p.getString("date", null) != today()) return false
+    return p.getInt("seconds", 0) >= limitMinutes(context) * 60
+  }
+
+  private fun today(): String =
+    SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
+
+  private fun tomorrow(): String {
+    val cal = Calendar.getInstance()
+    cal.add(Calendar.DAY_OF_YEAR, 1)
+    return SimpleDateFormat("yyyy-MM-dd", Locale.US).format(cal.time)
+  }
 
   /**
    * True when a guilt-mode user has crossed their limit with auto-block on and

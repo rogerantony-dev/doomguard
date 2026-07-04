@@ -140,6 +140,7 @@ export default function App() {
   const limit = status?.limitMinutes ?? 30;
   const blockAtLimit = status?.blockAtLimit ?? true;
   const strict = status?.strictMode ?? false;
+  const strictOffPending = status?.strictOffPending ?? false;
   const autoBlocked = status?.autoBlocked ?? false;
 
   const changeMode = useCallback(
@@ -247,6 +248,7 @@ export default function App() {
         value={limit}
         blockAtLimit={blockAtLimit}
         strict={strict}
+        strictOffPending={strictOffPending}
         onPick={changeLimit}
         onToggleBlock={changeBlockAtLimit}
         onToggleStrict={changeStrict}
@@ -504,6 +506,7 @@ function LimitPicker({
   value,
   blockAtLimit,
   strict,
+  strictOffPending,
   onPick,
   onToggleBlock,
   onToggleStrict,
@@ -513,6 +516,7 @@ function LimitPicker({
   value: number;
   blockAtLimit: boolean;
   strict: boolean;
+  strictOffPending: boolean;
   onPick: (minutes: number) => void;
   onToggleBlock: (enabled: boolean) => void;
   onToggleStrict: (enabled: boolean) => void;
@@ -561,8 +565,12 @@ function LimitPicker({
             />
             <ToggleRow
               title="Strict mode"
-              body="No snooze. Reels stay locked until midnight."
-              value={strict}
+              body={
+                strictOffPending
+                  ? "Off scheduled for tomorrow. Reels stay locked for the rest of today."
+                  : "No snooze. Reels stay locked until midnight."
+              }
+              value={strict && !strictOffPending}
               onToggle={onToggleStrict}
               lock
             />
