@@ -1,4 +1,4 @@
-import { pointsForLimit, nextRungBelow, LADDER, isCleanDay, lifetimePoints, streaks } from "./progress";
+import { pointsForLimit, nextRungBelow, LADDER, isCleanDay, lifetimePoints, streaks, computeProgress } from "./progress";
 import type { DoomguardDay } from "../modules/doomguardnative";
 
 const day = (date: string, seconds: number, limitMinutes?: number): DoomguardDay => ({
@@ -90,5 +90,47 @@ describe("streaks", () => {
     const h = [day("2026-07-04", 5 * 60, 30), day("2026-07-06", 5 * 60, 30), day("2026-07-07", 5 * 60, 30)];
     // 07-05 missing -> the run ending today is only 06,07.
     expect(streaks(h, "2026-07-07", 30).current).toBe(2);
+  });
+});
+
+const clean7 = (limit: number, startDay: number) =>
+  Array.from({ length: 7 }, (_, i) =>
+    day(`2026-07-${String(startDay + i).padStart(2, "0")}`, 60, limit)
+  );
+
+describe("computeProgress", () => {
+  const thresholds = [0, 50, 150, 400];
+  const noneSeen = { lastCelebratedStreakMilestone: 0, lastPointsCelebrated: 0 };
+
+  it("offers a level-down after a fresh 7-day streak above the floor", () => {
+    const p = computeProgress(clean7(60, 1), 60, "2026-07-07", thresholds, noneSeen);
+    expect(p.streak).toBe(7);
+    expect(p.pendingLevelDown).toEqual({ from: 60, to: 45, milestone: 7 });
+  });
+
+  it("does not re-offer a milestone already celebrated", () => {
+    const seen = { lastCelebratedStreakMilestone: 7, lastPointsCelebrated: 0 };
+    const p = computeProgress(clean7(60, 1), 60, "2026-07-07", thresholds, seen);
+    expect(p.pendingLevelDown).toBeNull();
+  });
+
+  it("never offers a level-down at the 15-minute floor", () => {
+    const p = computeProgress(clean7(15, 1), 15, "2026-07-07", thresholds, noneSeen);
+    expect(p.pendingLevelDown).toBeNull();
+  });
+
+  it("reports newly crossed cat thresholds as pending unlocks (the free cat unlocks silently)", () => {
+    // 7 clean days at 15 min = 700 pts -> crosses 0,50,150,400. The free cat
+    // (threshold 0) is unlocked from install, so it never fires a celebration.
+    const p = computeProgress(clean7(15, 1), 15, "2026-07-07", thresholds, noneSeen);
+    expect(p.points).toBe(700);
+    expect(p.unlockedCount).toBe(4);
+    expect(p.pendingCatUnlocks).toEqual([50, 150, 400]);
+  });
+
+  it("only reports thresholds crossed since last celebrated points", () => {
+    const seen = { lastCelebratedStreakMilestone: 0, lastPointsCelebrated: 150 };
+    const p = computeProgress(clean7(15, 1), 15, "2026-07-07", thresholds, seen);
+    expect(p.pendingCatUnlocks).toEqual([400]);
   });
 });

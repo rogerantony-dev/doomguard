@@ -76,3 +76,47 @@ export function streaks(
   }
   return { current, best };
 }
+
+export type ProgressSeen = {
+  lastCelebratedStreakMilestone: number;
+  lastPointsCelebrated: number;
+};
+
+export type Progress = {
+  streak: number;
+  best: number;
+  points: number;
+  limit: number;
+  nextRung: number | null;
+  unlockedCount: number;
+  pendingLevelDown: { from: number; to: number; milestone: number } | null;
+  pendingCatUnlocks: number[];
+};
+
+/**
+ * Everything the home screen needs, derived purely from history + the current
+ * limit + which moments have already been shown (so celebrations never re-fire).
+ */
+export function computeProgress(
+  history: DoomguardDay[],
+  currentLimit: number,
+  today: string,
+  catThresholds: number[],
+  seen: ProgressSeen
+): Progress {
+  const { current: streak, best } = streaks(history, today, currentLimit);
+  const points = lifetimePoints(history, currentLimit);
+  const nextRung = nextRungBelow(currentLimit);
+  const unlockedCount = catThresholds.filter((t) => t <= points).length;
+
+  const pendingLevelDown =
+    streak > 0 && streak % 7 === 0 && nextRung !== null && streak > seen.lastCelebratedStreakMilestone
+      ? { from: currentLimit, to: nextRung, milestone: streak }
+      : null;
+
+  const pendingCatUnlocks = catThresholds
+    .filter((t) => t > seen.lastPointsCelebrated && t <= points)
+    .sort((a, b) => a - b);
+
+  return { streak, best, points, limit: currentLimit, nextRung, unlockedCount, pendingLevelDown, pendingCatUnlocks };
+}
