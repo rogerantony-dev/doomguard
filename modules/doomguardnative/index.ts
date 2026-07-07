@@ -41,6 +41,8 @@ export type DoomguardDay = {
   count: number;
   /** YouTube Shorts counted that day. */
   shorts: number;
+  /** Daily limit in effect that day, in minutes. Absent on days archived before this shipped. */
+  limitMinutes?: number;
 };
 
 type NativeModule = {

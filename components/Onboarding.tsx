@@ -595,7 +595,7 @@ function NudgeArt() {
   return (
     <View style={{ width: 250 }} className="rounded-[22px] border border-bone/10 bg-panel p-4">
       <Image
-        source={CATS[0]}
+        source={CATS[0].src}
         style={{ width: "100%", height: 104, borderRadius: 14 }}
         resizeMode="cover"
       />

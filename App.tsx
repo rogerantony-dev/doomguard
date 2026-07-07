@@ -236,7 +236,7 @@ export default function App() {
         onGiveIn={giveIn}
       />
 
-      <CatGallery visible={catsOpen} onClose={() => setCatsOpen(false)} />
+      <CatGallery visible={catsOpen} onClose={() => setCatsOpen(false)} unlockedCount={0} />
 
       <HistoryScreen
         visible={screen === "history"}
