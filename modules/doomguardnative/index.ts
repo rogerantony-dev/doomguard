@@ -30,6 +30,10 @@ export type DoomguardStatus = {
   strictOffPending: boolean;
   /** Right now, a guilt user is over their limit and reels are being bounced. */
   autoBlocked: boolean;
+  /** Highest streak milestone already celebrated (so the moment doesn't re-fire). */
+  lastCelebratedStreakMilestone: number;
+  /** Lifetime points value at which cat-unlock reveals were last shown. */
+  lastPointsCelebrated: number;
 };
 
 export type DoomguardDay = {
@@ -53,6 +57,8 @@ type NativeModule = {
   setStrict(enabled: boolean): void;
   getHistory(): DoomguardDay[];
   consumeOpenCats(): boolean;
+  markStreakCelebrated(milestone: number): void;
+  markPointsCelebrated(points: number): void;
 };
 
 // Lazily resolved so JS never crashes if the native module isn't present
@@ -124,5 +130,23 @@ export function consumeOpenCats(): boolean {
     return nativeModule.consumeOpenCats();
   } catch {
     return false;
+  }
+}
+
+export function markStreakCelebrated(milestone: number): void {
+  if (!nativeModule) return;
+  try {
+    nativeModule.markStreakCelebrated(milestone);
+  } catch {
+    // no-op if the native module isn't available
+  }
+}
+
+export function markPointsCelebrated(points: number): void {
+  if (!nativeModule) return;
+  try {
+    nativeModule.markPointsCelebrated(points);
+  } catch {
+    // no-op if the native module isn't available
   }
 }
