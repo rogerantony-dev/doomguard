@@ -1,6 +1,7 @@
 package com.rogerantony.doomguard
 
 import android.accessibilityservice.AccessibilityService
+import android.accessibilityservice.GestureDescription
 import android.animation.ValueAnimator
 import android.content.Context
 import android.content.Intent
@@ -8,6 +9,7 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Outline
 import android.graphics.Paint
+import android.graphics.Path
 import android.graphics.PixelFormat
 import android.graphics.RadialGradient
 import android.graphics.Rect
@@ -103,6 +105,10 @@ class ReelAccessibilityService : AccessibilityService() {
     // as an accessibility click; a horizontal swipe scrolls the tray's own row.
     private var trayCover: View? = null
     private var trayCoverActive = false
+    // True only for the brief window of a forwarded synthetic tap, during which the
+    // tray cover is set pass-through so the tap can land on Instagram. Guards the
+    // 180ms cover ticker from re-arming touch-eating mid-tap.
+    private var trayForwarding = false
     private var trayDownX = 0f
     private var trayDownY = 0f
     private var trayDownAt = 0L
@@ -1646,13 +1652,32 @@ class ReelAccessibilityService : AccessibilityService() {
         if (trayCover == null) buildTrayCover()
         val view = trayCover ?: return
         val lp = view.layoutParams as WindowManager.LayoutParams
-        lp.flags = lp.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE.inv() // make it eat touches
+        // Eat touches (so a vertical drag can't scroll the blocked feed) — but never
+        // re-arm mid-tap: while a forwarded tap is in flight the cover must stay
+        // pass-through, and this runs every ~180ms from the cover ticker.
+        lp.flags = if (trayForwarding) {
+            lp.flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+        } else {
+            lp.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE.inv()
+        }
         lp.x = band.left
         lp.y = band.top
         lp.width = band.width()
         lp.height = band.height()
         runCatching { windowManager?.updateViewLayout(view, lp) }
         trayCoverActive = true
+    }
+
+    /** Toggle whether the tray cover eats touches (true) or lets them pass through (false). */
+    private fun setTrayTouchable(touchable: Boolean) {
+        val view = trayCover ?: return
+        val lp = view.layoutParams as WindowManager.LayoutParams
+        lp.flags = if (touchable) {
+            lp.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE.inv()
+        } else {
+            lp.flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+        }
+        runCatching { windowManager?.updateViewLayout(view, lp) }
     }
 
     private fun hideTrayCover() {
@@ -1721,12 +1746,53 @@ class ReelAccessibilityService : AccessibilityService() {
         }
     }
 
-    /** Forward a tap to the clickable node (a story circle) under (x, y). */
+    /**
+     * Forward a tap to the story circle under (x, y). Prefer an accessibility click on
+     * the clickable node when IG exposes one (cheap, no window churn). Many IG builds
+     * DON'T mark the story ring clickable, though — there `deepestClickableAt` returns
+     * null (or the click isn't accepted), and because the cover already ate the real
+     * touch the story would never open. Fall back to a real synthetic tap through the
+     * cover so it works regardless of IG's accessibility tree.
+     */
     private fun clickNodeAt(x: Int, y: Int) {
-        val root = rootInActiveWindow ?: return
-        deepestClickableAt(root, x, y)?.let { node ->
-            runCatching { node.performAction(AccessibilityNodeInfo.ACTION_CLICK) }
+        val node = rootInActiveWindow?.let { deepestClickableAt(it, x, y) }
+        val clicked = node != null &&
+            runCatching { node.performAction(AccessibilityNodeInfo.ACTION_CLICK) }.getOrDefault(false)
+        if (!clicked) tapThrough(x, y)
+    }
+
+    /**
+     * Land a REAL tap on Instagram at (x, y) by briefly making the tray cover
+     * pass-through and dispatching a one-shot tap gesture, then re-arming the cover so
+     * a later drag still can't scroll the blocked feed. Requires
+     * `android:canPerformGestures="true"` on the accessibility service. The stroke
+     * starts 50ms out so WindowManager has applied the pass-through flag before the tap
+     * lands — otherwise it could re-hit this same overlay.
+     */
+    private fun tapThrough(x: Int, y: Int) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return
+        if (trayCover == null) return
+        trayForwarding = true
+        setTrayTouchable(false)
+        val restore = Runnable {
+            trayForwarding = false
+            if (trayCoverActive) setTrayTouchable(true)
         }
+        val path = Path().apply { moveTo(x.toFloat(), y.toFloat()) }
+        val gesture = GestureDescription.Builder()
+            .addStroke(GestureDescription.StrokeDescription(path, 50L, 40L))
+            .build()
+        val dispatched = runCatching {
+            dispatchGesture(
+                gesture,
+                object : GestureResultCallback() {
+                    override fun onCompleted(d: GestureDescription?) = restore.run()
+                    override fun onCancelled(d: GestureDescription?) = restore.run()
+                },
+                mainHandler,
+            )
+        }.getOrDefault(false)
+        if (!dispatched) restore.run()
     }
 
     /** Deepest visible clickable node whose bounds contain (x, y), or null. */
