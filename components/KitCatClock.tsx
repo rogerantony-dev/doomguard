@@ -9,6 +9,7 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 import Svg, { Circle, Ellipse, G, Line, Path } from "react-native-svg";
+import { rotateAbout, translateX } from "./catmatrix";
 import { C } from "./console";
 import { timeLeftState } from "./timeleft";
 
@@ -39,10 +40,10 @@ export function KitCatClock({
   const { minutesLeft, color } = timeLeftState(usedMinutes, limitMinutes);
   const reduceMotion = useReducedMotion();
 
-  const dart = useSharedValue(0); // 0..1 -> eyes glance left..right
-  const swing = useSharedValue(0); // 0..1 -> tail sweeps one side to the other
+  const dart = useSharedValue(0.5); // 0..1 -> eyes glance left..right (0.5 = centred)
+  const swing = useSharedValue(0.5); // 0..1 -> tail sweeps side to side (0.5 = upright)
   useMountEffect(() => {
-    if (reduceMotion) return;
+    if (reduceMotion) return; // rest at the centred pose set above
     dart.value = withRepeat(
       withTiming(1, { duration: 1300, easing: Easing.inOut(Easing.sin) }),
       -1,
@@ -55,8 +56,17 @@ export function KitCatClock({
     );
   });
 
-  const eyeProps = useAnimatedProps(() => ({ x: -2.5 + dart.value * 5 }));
-  const tailProps = useAnimatedProps(() => ({ rotation: -15 + swing.value * 30 }));
+  // react-native-svg's native <G> only honours a `matrix` prop; `x`/`rotation`
+  // are JS-render shorthands Reanimated can't reach on the New Architecture, so
+  // the eyes and tail have to be driven through matrices. See catmatrix.ts.
+  // `matrix` is a real native prop on RNSVGGroup but absent from the public
+  // GProps types, so the returns are cast past the type gap.
+  const eyeProps = useAnimatedProps(() => ({
+    matrix: translateX(-2.5 + dart.value * 5),
+  })) as never;
+  const tailProps = useAnimatedProps(() => ({
+    matrix: rotateAbout(-15 + swing.value * 30, 112, 120),
+  })) as never;
 
   return (
     <View className="items-center">
@@ -87,8 +97,8 @@ export function KitCatClock({
         <Line x1={75} y1={132} x2={75} y2={110} stroke={C.bone} strokeWidth={3} strokeLinecap="round" />
         <Line x1={75} y1={132} x2={92} y2={139} stroke={C.bone} strokeWidth={3} strokeLinecap="round" />
         <Circle cx={75} cy={132} r={3.5} fill={color} />
-        {/* tail — pivots at its base and keeps time */}
-        <AnimatedG originX={112} originY={120} animatedProps={tailProps}>
+        {/* tail — pivots at its base (matrix carries the pivot) and keeps time */}
+        <AnimatedG animatedProps={tailProps}>
           <Path d="M112 120 q24 8 20 44" stroke={FUR} strokeWidth={7} strokeLinecap="round" fill="none" />
         </AnimatedG>
       </Svg>
