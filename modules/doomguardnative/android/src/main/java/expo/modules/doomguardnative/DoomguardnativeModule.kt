@@ -38,6 +38,8 @@ class DoomguardnativeModule : Module() {
         "strictMode" to strictMode(context),
         "strictOffPending" to strictOffPending(context),
         "autoBlocked" to autoBlocked(context),
+        "lastCelebratedStreakMilestone" to prefs(context).getInt("lastCelebratedStreakMilestone", 0),
+        "lastPointsCelebrated" to prefs(context).getInt("lastPointsCelebrated", 0),
       )
     }
 
@@ -88,6 +90,20 @@ class DoomguardnativeModule : Module() {
       if (v) p.edit().putBoolean("openCats", false).apply()
       v
     }
+
+    Function("markStreakCelebrated") { milestone: Int ->
+      val context = appContext.reactContext?.applicationContext ?: return@Function
+      val p = prefs(context)
+      val cur = p.getInt("lastCelebratedStreakMilestone", 0)
+      if (milestone > cur) p.edit().putInt("lastCelebratedStreakMilestone", milestone).apply()
+    }
+
+    Function("markPointsCelebrated") { points: Int ->
+      val context = appContext.reactContext?.applicationContext ?: return@Function
+      val p = prefs(context)
+      val cur = p.getInt("lastPointsCelebrated", 0)
+      if (points > cur) p.edit().putInt("lastPointsCelebrated", points).apply()
+    }
   }
 
   private fun defaultStatus(): Map<String, Any> = mapOf(
@@ -103,6 +119,8 @@ class DoomguardnativeModule : Module() {
     "strictMode" to false,
     "strictOffPending" to false,
     "autoBlocked" to false,
+    "lastCelebratedStreakMilestone" to 0,
+    "lastPointsCelebrated" to 0,
   )
 
   private fun prefs(context: Context) =
@@ -220,7 +238,7 @@ class DoomguardnativeModule : Module() {
    */
   private fun history(context: Context): List<Map<String, Any>> {
     val prefs = prefs(context)
-    val byDate = linkedMapOf<String, IntArray>() // date -> [seconds, count, shorts]
+    val byDate = linkedMapOf<String, IntArray>() // date -> [seconds, count, shorts, limitMinutes]
 
     runCatching {
       val json = JSONObject(prefs.getString("history", "{}") ?: "{}")
@@ -232,28 +250,32 @@ class DoomguardnativeModule : Module() {
           day.optInt("seconds"),
           day.optInt("count"),
           day.optInt("shorts"),
+          day.optInt("limitMinutes"), // 0 when archived before this shipped; JS falls back
         )
       }
     }
 
     val liveDate = prefs.getString("date", null)
     if (liveDate != null) {
-      val cur = byDate[liveDate] ?: intArrayOf(0, 0, 0)
+      val cur = byDate[liveDate] ?: intArrayOf(0, 0, 0, 0)
       cur[0] += prefs.getInt("seconds", 0)
       cur[1] += prefs.getInt("count", 0)
       cur[2] += prefs.getInt("shortsCount", 0)
+      cur[3] = limitMinutes(context) // live day is always judged against the current limit
       byDate[liveDate] = cur
     }
 
     return byDate.entries
       .sortedBy { it.key }
       .map { (date, v) ->
-        mapOf(
+        val m = mutableMapOf<String, Any>(
           "date" to date,
           "seconds" to v[0],
           "count" to v[1],
           "shorts" to v[2],
         )
+        if (v[3] > 0) m["limitMinutes"] = v[3]
+        m
       }
   }
 }

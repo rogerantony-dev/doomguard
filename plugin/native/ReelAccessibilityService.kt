@@ -930,7 +930,7 @@ class ReelAccessibilityService : AccessibilityService() {
                 val count = prefs.getInt("count", 0)
                 val shorts = prefs.getInt("shortsCount", 0)
                 if (seconds > 0 || count > 0 || shorts > 0) {
-                    archiveDay(storedDate, seconds, count, shorts)
+                    archiveDay(storedDate, seconds, count, shorts, limitMinutes())
                 }
             }
             prefs.edit()
@@ -944,7 +944,7 @@ class ReelAccessibilityService : AccessibilityService() {
     }
 
     /** Fold one finished day's totals into the persisted history JSON map. */
-    private fun archiveDay(date: String, seconds: Int, count: Int, shorts: Int) {
+    private fun archiveDay(date: String, seconds: Int, count: Int, shorts: Int, limitMinutes: Int) {
         val history = runCatching {
             JSONObject(prefs.getString("history", "{}") ?: "{}")
         }.getOrElse { JSONObject() }
@@ -953,7 +953,8 @@ class ReelAccessibilityService : AccessibilityService() {
             JSONObject()
                 .put("seconds", seconds)
                 .put("count", count)
-                .put("shorts", shorts),
+                .put("shorts", shorts)
+                .put("limitMinutes", limitMinutes),
         )
         prefs.edit().putString("history", history.toString()).apply()
     }

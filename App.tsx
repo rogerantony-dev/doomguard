@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AppState,
   BackHandler,
@@ -26,7 +26,10 @@ import { OnboardingFlow } from "./components/Onboarding";
 import { Brand, C, Kicker } from "./components/console";
 import {
   consumeOpenCats,
+  getHistory,
   getStatus,
+  markPointsCelebrated,
+  markStreakCelebrated,
   setBlockAtLimit,
   setLimit,
   setMode,
@@ -34,6 +37,10 @@ import {
   type DoomguardMode,
   type DoomguardStatus,
 } from "./modules/doomguardnative";
+import { computeProgress, type Progress } from "./components/progress";
+import { CAT_THRESHOLDS } from "./components/cats";
+import { ProgressStrip } from "./components/ProgressStrip";
+import { MilestoneModal } from "./components/MilestoneModal";
 import "./global.css";
 
 /** Matches the native pill curve: calm under ~10 min, fully red by ~50. */
@@ -60,6 +67,14 @@ function vibe(minutes: number): { title: string; sub: string } {
   };
 }
 
+/** Device-local "yyyy-mm-dd", matching the native SimpleDateFormat. */
+function localToday(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
+    d.getDate()
+  ).padStart(2, "0")}`;
+}
+
 /** Runs once on mount; the returned cleanup runs on unmount. */
 function useMountEffect(effect: () => void | (() => void)) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -72,6 +87,12 @@ export default function App() {
   const [screen, setScreen] = useState<"home" | "history">("home");
   const [catsOpen, setCatsOpen] = useState(false);
   const [limitPickerOpen, setLimitPickerOpen] = useState(false);
+  const [milestone, setMilestone] = useState<{
+    kind: "streak" | "cats";
+    streak: number;
+    unlockedCats: number;
+    levelDown: { from: number; to: number } | null;
+  } | null>(null);
   const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Read the latest screen from a ref so the back-handler subscribes once
   // (mount-only) rather than re-subscribing on every navigation.
@@ -143,6 +164,36 @@ export default function App() {
   const strictOffPending = status?.strictOffPending ?? false;
   const autoBlocked = status?.autoBlocked ?? false;
 
+  // Progression is a pure function of history + the current limit + which
+  // moments have already been shown. Recomputed whenever status refreshes.
+  const progress: Progress = useMemo(
+    () =>
+      computeProgress(getHistory(), limit, localToday(), CAT_THRESHOLDS, {
+        lastCelebratedStreakMilestone: status?.lastCelebratedStreakMilestone ?? 0,
+        lastPointsCelebrated: status?.lastPointsCelebrated ?? 0,
+      }),
+    [status, limit]
+  );
+
+  // Surface one pending moment when the app opens. A streak offer outranks cats.
+  useMountEffect(() => {
+    if (progress.pendingLevelDown) {
+      setMilestone({
+        kind: "streak",
+        streak: progress.pendingLevelDown.milestone,
+        unlockedCats: 0,
+        levelDown: { from: progress.pendingLevelDown.from, to: progress.pendingLevelDown.to },
+      });
+    } else if (progress.pendingCatUnlocks.length) {
+      setMilestone({
+        kind: "cats",
+        streak: progress.streak,
+        unlockedCats: progress.pendingCatUnlocks.length,
+        levelDown: null,
+      });
+    }
+  });
+
   const changeMode = useCallback(
     (next: DoomguardMode) => {
       if (next === mode) return;
@@ -209,6 +260,12 @@ export default function App() {
                 <Brand on={true} />
                 <LimitChip value={limit} onPress={() => setLimitPickerOpen(true)} />
               </View>
+              <ProgressStrip
+                streak={progress.streak}
+                best={progress.best}
+                points={progress.points}
+                onPress={() => setScreen("history")}
+              />
               <Dashboard
                 mode={mode}
                 seconds={seconds}
@@ -236,7 +293,31 @@ export default function App() {
         onGiveIn={giveIn}
       />
 
-      <CatGallery visible={catsOpen} onClose={() => setCatsOpen(false)} />
+      <CatGallery
+        visible={catsOpen}
+        onClose={() => setCatsOpen(false)}
+        unlockedCount={progress.unlockedCount}
+      />
+
+      <MilestoneModal
+        visible={milestone !== null}
+        kind={milestone?.kind ?? null}
+        streak={milestone?.streak ?? 0}
+        unlockedCats={milestone?.unlockedCats ?? 0}
+        levelDown={milestone?.levelDown ?? null}
+        onAcceptLevelDown={() => {
+          if (milestone?.levelDown) setLimit(milestone.levelDown.to);
+          if (milestone?.kind === "streak") markStreakCelebrated(milestone.streak);
+          setMilestone(null);
+          refresh();
+        }}
+        onDismiss={() => {
+          if (milestone?.kind === "streak") markStreakCelebrated(milestone.streak);
+          if (milestone?.kind === "cats") markPointsCelebrated(progress.points);
+          setMilestone(null);
+          refresh();
+        }}
+      />
 
       <HistoryScreen
         visible={screen === "history"}

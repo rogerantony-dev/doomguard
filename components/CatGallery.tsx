@@ -23,9 +23,11 @@ const PAGE_PADDING = 20;
 export function CatGallery({
   visible,
   onClose,
+  unlockedCount,
 }: {
   visible: boolean;
   onClose: () => void;
+  unlockedCount: number;
 }) {
   const { width, height: screenH } = useWindowDimensions();
   const tile = (width - PAGE_PADDING * 2 - GAP) / 2;
@@ -104,14 +106,38 @@ export function CatGallery({
             <View
               style={{ flexDirection: "row", flexWrap: "wrap", gap: GAP }}
             >
-              {CATS.map((src, i) => (
-                <Image
-                  key={i}
-                  source={src}
-                  style={{ width: tile, height: tile, borderRadius: 18 }}
-                  resizeMode="cover"
-                />
-              ))}
+              {CATS.map((cat, i) => {
+                const unlocked = i < unlockedCount;
+                if (unlocked) {
+                  return (
+                    <Image
+                      key={i}
+                      source={cat.src}
+                      style={{ width: tile, height: tile, borderRadius: 18 }}
+                      resizeMode="cover"
+                    />
+                  );
+                }
+                return (
+                  <View
+                    key={i}
+                    style={{
+                      width: tile,
+                      height: tile,
+                      borderRadius: 18,
+                      backgroundColor: C.panel,
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: 8,
+                    }}
+                  >
+                    <Ionicons name="lock-closed" size={20} color={C.dim} />
+                    <Text className="text-[12.5px] font-medium text-ash">
+                      Unlock at {cat.unlockAt} pts
+                    </Text>
+                  </View>
+                );
+              })}
             </View>
           </ScrollView>
         )}
