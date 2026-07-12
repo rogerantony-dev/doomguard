@@ -6,7 +6,6 @@ import {
   Platform,
   Pressable,
   ScrollView,
-  StyleSheet,
   Text,
   View,
 } from "react-native";
@@ -41,6 +40,7 @@ import { computeProgress, type Progress } from "./components/progress";
 import { CAT_THRESHOLDS } from "./components/cats";
 import { ProgressStrip } from "./components/ProgressStrip";
 import { MilestoneModal } from "./components/MilestoneModal";
+import { KitCatClock } from "./components/KitCatClock";
 import "./global.css";
 
 /** Matches the native pill curve: calm under ~10 min, fully red by ~50. */
@@ -455,9 +455,6 @@ function GuiltHero({
 }) {
   const over = minutes > limit;
   const numColor = over ? OVER : WASTE;
-  const limitLabel = over
-    ? `${minutes - limit} min over your ${limit}-min limit`
-    : `${limit - minutes} min left of your ${limit}-min limit`;
   return (
     <View className="mt-11">
       <View className="flex-row items-baseline">
@@ -471,10 +468,9 @@ function GuiltHero({
           min wasted today
         </Text>
       </View>
-      <WasteWall minutes={minutes} limit={limit} />
-      <Kicker style={{ marginTop: 12, color: numColor, letterSpacing: 0.6 }}>
-        {limitLabel}
-      </Kicker>
+      <View className="mt-7 items-center">
+        <KitCatClock usedMinutes={minutes} limitMinutes={limit} />
+      </View>
       <Text className="mt-6 text-[22px] font-semibold text-bone" style={{ letterSpacing: -0.4 }}>
         {vibe(minutes).title}
       </Text>
@@ -509,21 +505,6 @@ function BlockHero({ count }: { count: number }) {
           {count === 1 ? "reel" : "reels"} bounced today
         </Text>
       </View>
-    </View>
-  );
-}
-
-/** The wall of wasted minutes: a budget container that fills amber, then overflows red. */
-function WasteWall({ minutes, limit }: { minutes: number; limit: number }) {
-  const over = Math.max(0, minutes - limit);
-  return (
-    <View style={styles.wall}>
-      {Array.from({ length: limit }).map((_, i) => (
-        <View key={`b${i}`} style={[styles.cell, i < minutes ? styles.cellFill : styles.cellEmpty]} />
-      ))}
-      {Array.from({ length: over }).map((_, i) => (
-        <View key={`o${i}`} style={[styles.cell, styles.cellOver]} />
-      ))}
     </View>
   );
 }
@@ -728,14 +709,6 @@ function Switch({
     </AnimatedPressable>
   );
 }
-
-const styles = StyleSheet.create({
-  wall: { marginTop: 22, flexDirection: "row", flexWrap: "wrap", gap: 5 },
-  cell: { width: 16, height: 16, borderRadius: 3 },
-  cellFill: { backgroundColor: WASTE },
-  cellEmpty: { backgroundColor: "transparent", borderWidth: 1, borderColor: "rgba(224,145,60,0.20)" },
-  cellOver: { backgroundColor: OVER },
-});
 
 function ModeSwitch({
   mode,
