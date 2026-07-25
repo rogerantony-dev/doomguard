@@ -13,11 +13,7 @@ import { StatusBar } from "expo-status-bar";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 
-import Animated, {
-  SlideInDown,
-  useAnimatedStyle,
-  withTiming,
-} from "react-native-reanimated";
+import Animated, { SlideInDown } from "react-native-reanimated";
 
 import { CatGallery } from "./components/CatGallery";
 import { HistoryScreen } from "./components/HistoryScreen";
@@ -29,10 +25,8 @@ import {
   getStatus,
   markPointsCelebrated,
   markStreakCelebrated,
-  setBlockAtLimit,
   setLimit,
   setMode,
-  setStrict,
   type UnhookMode,
   type UnhookStatus,
 } from "./modules/unhooknative";
@@ -159,9 +153,6 @@ export default function App() {
   const count = status?.todayCount ?? 0;
   const shorts = status?.todayShorts ?? 0;
   const limit = status?.limitMinutes ?? 30;
-  const blockAtLimit = status?.blockAtLimit ?? true;
-  const strict = status?.strictMode ?? false;
-  const strictOffPending = status?.strictOffPending ?? false;
   const autoBlocked = status?.autoBlocked ?? false;
 
   // Progression is a pure function of history + the current limit + which
@@ -218,22 +209,6 @@ export default function App() {
     (minutes: number) => {
       setLimit(minutes);
       setLimitPickerOpen(false);
-      refresh();
-    },
-    [refresh]
-  );
-
-  const changeBlockAtLimit = useCallback(
-    (enabled: boolean) => {
-      setBlockAtLimit(enabled);
-      refresh();
-    },
-    [refresh]
-  );
-
-  const changeStrict = useCallback(
-    (enabled: boolean) => {
-      setStrict(enabled);
       refresh();
     },
     [refresh]
@@ -327,12 +302,7 @@ export default function App() {
       <LimitPicker
         visible={limitPickerOpen}
         value={limit}
-        blockAtLimit={blockAtLimit}
-        strict={strict}
-        strictOffPending={strictOffPending}
         onPick={changeLimit}
-        onToggleBlock={changeBlockAtLimit}
-        onToggleStrict={changeStrict}
         onClose={() => setLimitPickerOpen(false)}
       />
     </View>
@@ -566,22 +536,12 @@ function LimitChip({ value, onPress }: { value: number; onPress: () => void }) {
 function LimitPicker({
   visible,
   value,
-  blockAtLimit,
-  strict,
-  strictOffPending,
   onPick,
-  onToggleBlock,
-  onToggleStrict,
   onClose,
 }: {
   visible: boolean;
   value: number;
-  blockAtLimit: boolean;
-  strict: boolean;
-  strictOffPending: boolean;
   onPick: (minutes: number) => void;
-  onToggleBlock: (enabled: boolean) => void;
-  onToggleStrict: (enabled: boolean) => void;
   onClose: () => void;
 }) {
   return (
@@ -616,97 +576,10 @@ function LimitPicker({
               );
             })}
           </View>
-
-          <View className="mt-4">
-            <ToggleRow
-              title="Block at limit"
-              body="Wall reels off once you hit it. Snooze 5 min at a time if you must."
-              value={blockAtLimit}
-              onToggle={onToggleBlock}
-              first
-            />
-            <ToggleRow
-              title="Strict mode"
-              body={
-                strictOffPending
-                  ? "Off scheduled for tomorrow. Reels stay locked for the rest of today."
-                  : "No snooze. Reels stay locked until midnight."
-              }
-              value={strict && !strictOffPending}
-              onToggle={onToggleStrict}
-              lock
-            />
-          </View>
         </Pressable>
         </Animated.View>
       </Pressable>
     </Modal>
-  );
-}
-
-function ToggleRow({
-  title,
-  body,
-  value,
-  onToggle,
-  first,
-  lock,
-}: {
-  title: string;
-  body: string;
-  value: boolean;
-  onToggle: (enabled: boolean) => void;
-  first?: boolean;
-  lock?: boolean;
-}) {
-  return (
-    <View
-      className={`flex-row items-center justify-between gap-4 border-t border-bone/10 py-4 ${
-        first ? "mt-1" : ""
-      }`}
-    >
-      <View className="flex-1">
-        <View className="flex-row items-center gap-1.5">
-          <Text className="text-[15px] font-semibold text-bone">{title}</Text>
-          {lock ? <Ionicons name="lock-closed" size={13} color={C.dim} /> : null}
-        </View>
-        <Text className="mt-1 text-[12.5px] leading-snug text-ash">{body}</Text>
-      </View>
-      <Switch value={value} onToggle={onToggle} />
-    </View>
-  );
-}
-
-const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
-
-function Switch({
-  value,
-  onToggle,
-}: {
-  value: boolean;
-  onToggle: (enabled: boolean) => void;
-}) {
-  const track = useAnimatedStyle(() => ({
-    backgroundColor: withTiming(value ? C.toxic : "#3A3A35", { duration: 170 }),
-  }));
-  const knob = useAnimatedStyle(() => ({
-    transform: [{ translateX: withTiming(value ? 19 : 0, { duration: 170 }) }],
-  }));
-  return (
-    <AnimatedPressable
-      onPress={() => onToggle(!value)}
-      style={[
-        { width: 46, height: 27, borderRadius: 999, justifyContent: "center", paddingLeft: 3 },
-        track,
-      ]}
-    >
-      <Animated.View
-        style={[
-          { width: 21, height: 21, borderRadius: 999, backgroundColor: "#FFFFFF" },
-          knob,
-        ]}
-      />
-    </AnimatedPressable>
   );
 }
 

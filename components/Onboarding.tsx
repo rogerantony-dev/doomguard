@@ -22,12 +22,7 @@ import * as IntentLauncher from "expo-intent-launcher";
 import { C } from "./console";
 import { CATS } from "./cats";
 import { KitCatClock } from "./KitCatClock";
-import {
-  setLimit,
-  setMode,
-  setStrict,
-  type UnhookMode,
-} from "../modules/unhooknative";
+import { setLimit, setMode, type UnhookMode } from "../modules/unhooknative";
 
 const ANDROID_PACKAGE = "com.rogerantony.unhook";
 const WASTE = "#E0913C";
@@ -90,8 +85,6 @@ export function OnboardingFlow({
   const chooseMode = (m: UnhookMode) => {
     setSelMode(m);
     setMode(m);
-    // Block mode is strict by default; Guilt keeps strict off (changeable later).
-    if (m === "block") setStrict(true);
   };
   const pickLimit = (n: number) => {
     setLim(n);
@@ -197,7 +190,7 @@ export function OnboardingFlow({
                 iconBg="rgba(56,199,134,0.14)"
                 icon="shield-checkmark"
                 title="Block"
-                body="Wall off every reel and short, all day. The strict option."
+                body="Wall off every reel and short, all day, from the moment you open the app."
                 onPress={() => chooseMode("block")}
               />
             </View>

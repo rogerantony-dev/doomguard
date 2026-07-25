@@ -197,7 +197,7 @@ const howItWorks = `<div class="scr">
       </div>
       <div class="opt">
         <div class="ic b">${shBig(T.green)}</div>
-        <div style="flex:1"><h5>Block</h5><p>Wall off every reel and short, all day. The strict option.</p></div>
+        <div style="flex:1"><h5>Block</h5><p>Wall off every reel and short, all day, from the moment you open the app.</p></div>
         <div class="rad"></div>
       </div>
     </div>

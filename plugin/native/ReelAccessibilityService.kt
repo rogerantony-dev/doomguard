@@ -351,26 +351,10 @@ class ReelAccessibilityService : AccessibilityService() {
     private fun currentMode(): String = prefs.getString("mode", "guilt") ?: "guilt"
 
     // --- Auto-block at the daily limit ----------------------------------------
-    private fun blockAtLimit(): Boolean = prefs.getBoolean("blockAtLimit", true)
-    private fun strictMode(): Boolean {
-        if (!prefs.getBoolean("strictMode", false)) return false
-        // A turn-off requested while over the limit is queued for the next reset
-        // so strict can't be flipped off to escape a live block. Apply it once
-        // its day has arrived.
-        val offAt = prefs.getString("strictOffAt", null)
-        if (offAt != null && today() >= offAt) {
-            prefs.edit().putBoolean("strictMode", false).remove("strictOffAt").apply()
-            return false
-        }
-        return true
-    }
-    private fun snoozing(): Boolean = System.currentTimeMillis() < prefs.getLong("snoozeUntil", 0L)
-
-    /** Guilt user is over the daily limit (auto-block on) and not inside a snooze. */
+    /** Guilt user is over the daily limit: reels are bounced, locked until reset. */
     private fun autoBlocking(): Boolean {
-        if (currentMode() != "guilt" || !blockAtLimit()) return false
-        if (currentSeconds() < limitMinutes() * 60) return false
-        return !snoozing()
+        if (currentMode() != "guilt") return false
+        return currentSeconds() >= limitMinutes() * 60
     }
 
     /** Reels should be bounced right now: manual Block, or auto-block at the limit. */
@@ -1521,7 +1505,7 @@ class ReelAccessibilityService : AccessibilityService() {
         return nudgeModalShown
     }
 
-    /** "You hit your limit" card, with an optional 5-minute snooze (unless strict). */
+    /** "You hit your limit" card. Reels stay blocked until the next daily reset. */
     private fun showLimitReached() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         if (!Settings.canDrawOverlays(this)) return
@@ -1579,26 +1563,6 @@ class ReelAccessibilityService : AccessibilityService() {
         }, LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
         ).apply { topMargin = dp(18) })
-
-        if (!strictMode()) {
-            card.addView(TextView(this).apply {
-                text = "Give me 5 more minutes"
-                gravity = Gravity.CENTER
-                setTextColor(Color.parseColor("#62625B"))
-                setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
-                typeface = Typeface.DEFAULT
-                setPadding(0, dp(12), 0, dp(6))
-                setOnClickListener {
-                    prefs.edit()
-                        .putLong("snoozeUntil", System.currentTimeMillis() + 5 * 60 * 1000L)
-                        .remove("limitAlertDate") // re-announce after the snooze ends
-                        .apply()
-                    hideNudgeModal()
-                }
-            }, LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply { topMargin = dp(4) })
-        }
 
         val scrim = FrameLayout(this).apply {
             setBackgroundColor(Color.parseColor("#BF000000"))
