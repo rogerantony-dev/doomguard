@@ -100,7 +100,7 @@ function widgetScreen(over) {
   return `<div class="home">
     <div class="clock"><div class="t num">9:41</div><div class="d">Monday, June 30</div></div>
     <div class="widgetwrap"><div class="widget">
-      <div class="brand">DOOMGUARD</div>
+      <div class="brand">UNHOOK</div>
       <div class="timerow"><span class="time num" style="color:${c}">${time}</span><span class="wt">wasted today</span></div>
       <div class="lim" style="color:${c}">${lim}</div>
       <div class="counts"><span>${over ? 88 : 14} reels</span><span>${over ? 31 : 7} shorts</span></div>

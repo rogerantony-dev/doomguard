@@ -6,19 +6,19 @@
   service recolours the time + limit red once the daily limit is blown.
 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/doomguard_widget_root"
+    android:id="@+id/unhook_widget_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
     android:gravity="center_vertical"
-    android:background="@drawable/doomguard_widget_bg"
+    android:background="@drawable/unhook_widget_bg"
     android:padding="20dp">
 
     <TextView
         android:id="@+id/widget_brand"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="DOOMGUARD"
+        android:text="UNHOOK"
         android:textColor="#9A9A92"
         android:textSize="11sp"
         android:textStyle="bold"

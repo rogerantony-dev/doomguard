@@ -121,7 +121,7 @@ function dots(active) {
 }
 function frame(idx, brandRight, hero, cta) {
   return `<div class="scr">
-    <div class="head"><div class="brand"><span class="dot"></span>Doomguard</div>${brandRight}</div>
+    <div class="head"><div class="brand"><span class="dot"></span>Unhook</div>${brandRight}</div>
     <div class="hero">${hero}</div>
     <div class="foot">${dots(idx)}<div class="cta">${cta}</div></div>
   </div>`;
@@ -131,7 +131,7 @@ const skip = `<span class="skip">Skip</span>`;
 const welcome = frame(0, "", `
   <div class="art">${wall(28, 48)}</div>
   <div><div class="htitle">Your scroll,<br>on the clock.</div>
-    <div class="hsub">Doomguard times the Reels and Shorts eating your day, and helps you stop.</div></div>
+    <div class="hsub">Unhook times the Reels and Shorts eating your day, and helps you stop.</div></div>
 `, "Get started");
 
 const timeIt = frame(1, skip, `
@@ -164,13 +164,13 @@ const nudgeIt = frame(3, skip, `
     </div>
   </div>
   <div><div class="htitle">A nudge to look away.</div>
-    <div class="hsub">Spiraling? Doomguard interrupts with a nudge, and a cat to watch instead of the feed.</div></div>
+    <div class="hsub">Spiraling? Unhook interrupts with a nudge, and a cat to watch instead of the feed.</div></div>
 `, "Next");
 
 const everywhere = frame(4, skip, `
   <div class="art">
     <div class="mwidget">
-      <div class="mwbrand">DOOMGUARD</div>
+      <div class="mwbrand">UNHOOK</div>
       <div class="mwtime"><span style="color:${T.waste}">23m</span> <span class="mwt">wasted today</span></div>
       <div class="mwlim">37 min left of your limit</div>
       <div class="mwcounts">14 reels &nbsp;&nbsp; 7 shorts</div>
@@ -182,17 +182,17 @@ const everywhere = frame(4, skip, `
 `, "Next");
 
 const setup = `<div class="scr">
-  <div class="head"><div class="brand"><span class="dot" style="background:${T.faint}"></span>Doomguard</div></div>
+  <div class="head"><div class="brand"><span class="dot" style="background:${T.faint}"></span>Unhook</div></div>
   <div style="flex:1;display:flex;flex-direction:column;justify-content:center">
     <div class="setuphead">
       <div class="setuptitle">Two quick permissions.</div>
-      <div class="setupsub">This is how Doomguard sees Reels and floats the timer. It only reads Instagram and YouTube, nothing else, and your data stays on this device.</div>
+      <div class="setupsub">This is how Unhook sees Reels and floats the timer. It only reads Instagram and YouTube, nothing else, and your data stays on this device.</div>
     </div>
     <div class="steps">
       <div class="step"><span class="stepn done">${check(T.bg)}</span>
         <div><h4>Draw over other apps</h4><p>Lets the timer float on top of Instagram.</p><div class="ok">✓ Enabled</div></div></div>
       <div class="step"><span class="stepn">2</span>
-        <div><h4>Accessibility service</h4><p>Find “Doomguard Reel Counter” and turn it on. This is how it knows when you're watching Reels.</p><div class="go">Open settings ›</div></div></div>
+        <div><h4>Accessibility service</h4><p>Find “Unhook Reel Counter” and turn it on. This is how it knows when you're watching Reels.</p><div class="go">Open settings ›</div></div></div>
     </div>
   </div>
   <div class="foot">${dots(5)}<div class="cta" style="opacity:.5">Finish setup</div></div>

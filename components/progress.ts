@@ -1,4 +1,4 @@
-import type { DoomguardDay } from "../modules/doomguardnative";
+import type { UnhookDay } from "../modules/unhooknative";
 import { toDayIndex } from "./history";
 
 export const LADDER = [120, 90, 60, 45, 30, 15] as const;
@@ -24,13 +24,13 @@ export function nextRungBelow(limitMinutes: number): number | null {
 }
 
 /** A day is clean when its short-form seconds are at or under that day's limit. */
-export function isCleanDay(day: DoomguardDay, currentLimit: number): boolean {
+export function isCleanDay(day: UnhookDay, currentLimit: number): boolean {
   const limit = day.limitMinutes ?? currentLimit;
   return day.seconds <= limit * 60;
 }
 
 /** Lifetime points: sum over clean days of that day's rate. */
-export function lifetimePoints(history: DoomguardDay[], currentLimit: number): number {
+export function lifetimePoints(history: UnhookDay[], currentLimit: number): number {
   let total = 0;
   for (const d of history) {
     if (isCleanDay(d, currentLimit)) {
@@ -47,7 +47,7 @@ export function lifetimePoints(history: DoomguardDay[], currentLimit: number): n
  * run (the day isn't over yet) so we count back from the latest recorded day.
  */
 export function streaks(
-  history: DoomguardDay[],
+  history: UnhookDay[],
   today: string,
   currentLimit: number
 ): { current: number; best: number } {
@@ -98,7 +98,7 @@ export type Progress = {
  * limit + which moments have already been shown (so celebrations never re-fire).
  */
 export function computeProgress(
-  history: DoomguardDay[],
+  history: UnhookDay[],
   currentLimit: number,
   today: string,
   catThresholds: number[],

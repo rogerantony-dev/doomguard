@@ -6,7 +6,7 @@ const {
 const fs = require("fs");
 const path = require("path");
 
-const ACCESSIBILITY_CONFIG_RES = "@xml/doomguard_accessibility_config";
+const ACCESSIBILITY_CONFIG_RES = "@xml/unhook_accessibility_config";
 
 /**
  * Wires up the native Reel-counter:
@@ -52,7 +52,7 @@ function withReelCounterManifest(config) {
         $: {
           "android:name": ".ReelAccessibilityService",
           "android:exported": "false",
-          "android:label": "Doomguard Reel Counter",
+          "android:label": "Unhook Reel Counter",
           "android:permission": "android.permission.BIND_ACCESSIBILITY_SERVICE",
         },
         "intent-filter": [
@@ -81,16 +81,16 @@ function withReelCounterManifest(config) {
     // The home-screen widget receiver (reads the same counts the service writes).
     application.receiver = application.receiver || [];
     const widgetDeclared = application.receiver.some(
-      (r) => r.$["android:name"] === ".DoomguardWidgetProvider"
+      (r) => r.$["android:name"] === ".UnhookWidgetProvider"
     );
     if (!widgetDeclared) {
       application.receiver.push({
         $: {
-          "android:name": ".DoomguardWidgetProvider",
+          "android:name": ".UnhookWidgetProvider",
           // Exported so every launcher's widget host (incl. Samsung One UI)
           // reliably lists + binds the widget.
           "android:exported": "true",
-          "android:label": "Doomguard",
+          "android:label": "Unhook",
         },
         "intent-filter": [
           {
@@ -107,7 +107,7 @@ function withReelCounterManifest(config) {
           {
             $: {
               "android:name": "android.appwidget.provider",
-              "android:resource": "@xml/doomguard_widget_info",
+              "android:resource": "@xml/unhook_widget_info",
             },
           },
         ],
@@ -158,8 +158,8 @@ function withReelCounterNativeFiles(config) {
       const xmlDir = path.join(resRoot, "xml");
       fs.mkdirSync(xmlDir, { recursive: true });
       fs.copyFileSync(
-        path.join(sourceDir, "doomguard_accessibility_config.xml"),
-        path.join(xmlDir, "doomguard_accessibility_config.xml")
+        path.join(sourceDir, "unhook_accessibility_config.xml"),
+        path.join(xmlDir, "unhook_accessibility_config.xml")
       );
 
       // Widget resources (layout/drawable/xml) -> app/src/main/res/<type>/

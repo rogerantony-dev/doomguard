@@ -1,10 +1,10 @@
-import type { DoomguardDay } from "../modules/doomguardnative";
+import type { UnhookDay } from "../modules/unhooknative";
 
 export type HistoryRange = "7d" | "30d" | "all";
 
 export type HistoryView = {
   /** Contiguous, ascending, zero-filled days ending at `today`. */
-  series: DoomguardDay[];
+  series: UnhookDay[];
   totalSeconds: number;
   totalCount: number;
   totalShorts: number;
@@ -38,8 +38,8 @@ export function fromDayIndex(index: number): string {
 }
 
 /** Contiguous zero-filled days from startIndex..endIndex inclusive. */
-function fill(byDate: Map<string, DoomguardDay>, startIndex: number, endIndex: number): DoomguardDay[] {
-  const out: DoomguardDay[] = [];
+function fill(byDate: Map<string, UnhookDay>, startIndex: number, endIndex: number): UnhookDay[] {
+  const out: UnhookDay[] = [];
   for (let i = startIndex; i <= endIndex; i++) {
     const date = fromDayIndex(i);
     out.push(byDate.get(date) ?? { date, seconds: 0, count: 0, shorts: 0 });
@@ -47,8 +47,8 @@ function fill(byDate: Map<string, DoomguardDay>, startIndex: number, endIndex: n
   return out;
 }
 
-export function buildView(history: DoomguardDay[], range: HistoryRange, today: string): HistoryView {
-  const byDate = new Map<string, DoomguardDay>();
+export function buildView(history: UnhookDay[], range: HistoryRange, today: string): HistoryView {
+  const byDate = new Map<string, UnhookDay>();
   for (const d of history) byDate.set(d.date, d);
 
   const todayIndex = toDayIndex(today);

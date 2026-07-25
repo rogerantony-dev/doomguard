@@ -71,7 +71,7 @@ body{background:#242422;font-family:"Inter",system-ui,sans-serif;color:${T.ink};
 const sw = (c) => `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="1.9"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2M9 2h6"/></svg>`;
 const sh = (c) => `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="1.8"><path d="M12 3l7 3v5c0 4.4-3 7.4-7 8-4-.6-7-3.6-7-8V6z"/><path d="M8.5 12l2.5 2.5 5-5.5"/></svg>`;
 const lock = (c) => `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="2"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg>`;
-const brand = `<div class="head"><div class="brand"><span class="dot"></span>Doomguard</div></div>`;
+const brand = `<div class="head"><div class="brand"><span class="dot"></span>Unhook</div></div>`;
 
 const choose = `<div class="scr">
   ${brand}
@@ -95,7 +95,7 @@ const choose = `<div class="scr">
 const guiltOptions = `<div class="scr">
   ${brand}
   <div class="htitle">Set your limit.</div>
-  <div class="hsub">Doomguard blocks the reels once you cross it.</div>
+  <div class="hsub">Unhook blocks the reels once you cross it.</div>
   <div class="optgrid">
     ${[["15m",0],["30m",0],["45m",0],["1h",1],["1h 30",0],["2h",0]].map(([l,s])=>`<div class="o2 ${s?"sel":""}">${l}</div>`).join("")}
   </div>
