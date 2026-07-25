@@ -16,7 +16,7 @@ import Svg, { Line, Rect } from "react-native-svg";
 
 import { C, Kicker, Segmented } from "./console";
 import { buildView, type HistoryRange } from "./history";
-import { getHistory } from "../modules/doomguardnative";
+import { getHistory } from "../modules/unhooknative";
 
 type Metric = "time" | "count";
 

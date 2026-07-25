@@ -27,10 +27,10 @@ import {
   setLimit,
   setMode,
   setStrict,
-  type DoomguardMode,
-} from "../modules/doomguardnative";
+  type UnhookMode,
+} from "../modules/unhooknative";
 
-const ANDROID_PACKAGE = "com.rogerantony.doomguard";
+const ANDROID_PACKAGE = "com.rogerantony.unhook";
 const WASTE = "#E0913C";
 const PAGES = 8;
 
@@ -84,12 +84,12 @@ export function OnboardingFlow({
   };
 
   // Mode + its options are chosen on pages 6-7, persisted as you go.
-  const [selMode, setSelMode] = useState<DoomguardMode>("guilt");
+  const [selMode, setSelMode] = useState<UnhookMode>("guilt");
   const [lim, setLim] = useState(30);
   const [blockLim, setBlockLim] = useState(true);
   const [strict, setStrictLocal] = useState(false);
 
-  const chooseMode = (m: DoomguardMode) => {
+  const chooseMode = (m: UnhookMode) => {
     setSelMode(m);
     setMode(m);
     if (m === "block") {
@@ -192,7 +192,7 @@ export function OnboardingFlow({
                   Set your limit.
                 </Text>
                 <Text className="mt-2.5 text-[15px] leading-snug text-ash">
-                  Doomguard blocks the reels once you cross it.
+                  Unhook blocks the reels once you cross it.
                 </Text>
                 <View className="mt-6 flex-row flex-wrap justify-between gap-y-2.5">
                   {[15, 30, 45, 60, 90, 120].map((m) => {
@@ -264,7 +264,7 @@ export function OnboardingFlow({
               Two quick permissions.
             </Text>
             <Text className="mt-2.5 text-[14px] leading-relaxed text-ash">
-              This is how Doomguard sees Reels and floats the timer. It only reads
+              This is how Unhook sees Reels and floats the timer. It only reads
               Instagram and YouTube, nothing else, and your data stays on this
               device.
             </Text>
@@ -282,7 +282,7 @@ export function OnboardingFlow({
                 index={2}
                 done={accessibilityDone}
                 title="Enable the accessibility service"
-                body="Find “Doomguard Reel Counter” in the list and turn it on. This is how it knows when you're watching Reels."
+                body="Find “Unhook Reel Counter” in the list and turn it on. This is how it knows when you're watching Reels."
                 action="Open accessibility settings"
                 onPress={openAccessibilitySettings}
               />
@@ -315,7 +315,7 @@ const FEATURES: { art: ReactNode; title: string; sub: string; cta: string }[] = 
   {
     art: <MiniWall fill={28} total={48} />,
     title: "Your scroll,\non the clock.",
-    sub: "Doomguard times the Reels and Shorts eating your day, and helps you stop.",
+    sub: "Unhook times the Reels and Shorts eating your day, and helps you stop.",
     cta: "Get started",
   },
   {
@@ -333,7 +333,7 @@ const FEATURES: { art: ReactNode; title: string; sub: string; cta: string }[] = 
   {
     art: <NudgeArt />,
     title: "A nudge to look away.",
-    sub: "Spiraling? Doomguard interrupts with a nudge, and a cat to watch instead of the feed.",
+    sub: "Spiraling? Unhook interrupts with a nudge, and a cat to watch instead of the feed.",
     cta: "Next",
   },
   {
@@ -462,7 +462,7 @@ function Header({ index, onSkip }: { index: number; onSkip: () => void }) {
         <View
           style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: dim ? C.dim : C.toxic }}
         />
-        <Text className="text-[15px] font-semibold text-bone">Doomguard</Text>
+        <Text className="text-[15px] font-semibold text-bone">Unhook</Text>
       </View>
       {canSkip ? (
         <Pressable onPress={onSkip} hitSlop={12} className="active:opacity-60">
@@ -621,7 +621,7 @@ function EverywhereArt() {
     <View className="items-center">
       <View style={{ width: 250 }} className="rounded-[20px] border border-bone/10 bg-panel p-[18px]">
         <Text className="text-[10px] font-bold uppercase text-ash" style={{ letterSpacing: 1.6 }}>
-          Doomguard
+          Unhook
         </Text>
         <View className="mt-1.5 flex-row items-baseline gap-2">
           <Text className="font-bold" style={{ fontSize: 30, color: WASTE }}>

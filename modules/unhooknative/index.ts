@@ -1,8 +1,8 @@
 import { requireNativeModule } from "expo";
 
-export type DoomguardMode = "guilt" | "block";
+export type UnhookMode = "guilt" | "block";
 
-export type DoomguardStatus = {
+export type UnhookStatus = {
   /** "Draw over other apps" permission granted. */
   overlay: boolean;
   /** Accessibility service toggled on in system settings. */
@@ -16,7 +16,7 @@ export type DoomguardStatus = {
   /** Seconds spent on short-form players (reels + shorts) today. */
   todaySeconds: number;
   /** Current behavior: "guilt" counts reels, "block" bounces you out. */
-  mode: DoomguardMode;
+  mode: UnhookMode;
   /** User-set daily limit, in minutes. When crossed, surfaces turn red. */
   limitMinutes: number;
   /** Guilt mode: auto-block reels once the daily limit is hit. */
@@ -36,7 +36,7 @@ export type DoomguardStatus = {
   lastPointsCelebrated: number;
 };
 
-export type DoomguardDay = {
+export type UnhookDay = {
   /** Local calendar day, "yyyy-mm-dd". */
   date: string;
   /** Seconds on short-form players (reels + shorts) that day. */
@@ -50,12 +50,12 @@ export type DoomguardDay = {
 };
 
 type NativeModule = {
-  getStatus(): DoomguardStatus;
-  setMode(mode: DoomguardMode): void;
+  getStatus(): UnhookStatus;
+  setMode(mode: UnhookMode): void;
   setLimit(minutes: number): void;
   setBlockAtLimit(enabled: boolean): void;
   setStrict(enabled: boolean): void;
-  getHistory(): DoomguardDay[];
+  getHistory(): UnhookDay[];
   consumeOpenCats(): boolean;
   markStreakCelebrated(milestone: number): void;
   markPointsCelebrated(points: number): void;
@@ -65,12 +65,12 @@ type NativeModule = {
 // (e.g. running in a context without the dev build).
 let nativeModule: NativeModule | null = null;
 try {
-  nativeModule = requireNativeModule<NativeModule>("Doomguard");
+  nativeModule = requireNativeModule<NativeModule>("Unhook");
 } catch {
   nativeModule = null;
 }
 
-export function getStatus(): DoomguardStatus | null {
+export function getStatus(): UnhookStatus | null {
   if (!nativeModule) return null;
   try {
     return nativeModule.getStatus();
@@ -79,7 +79,7 @@ export function getStatus(): DoomguardStatus | null {
   }
 }
 
-export function setMode(mode: DoomguardMode): void {
+export function setMode(mode: UnhookMode): void {
   if (!nativeModule) return;
   try {
     nativeModule.setMode(mode);
@@ -115,7 +115,7 @@ export function setStrict(enabled: boolean): void {
   }
 }
 
-export function getHistory(): DoomguardDay[] {
+export function getHistory(): UnhookDay[] {
   if (!nativeModule) return [];
   try {
     return nativeModule.getHistory();

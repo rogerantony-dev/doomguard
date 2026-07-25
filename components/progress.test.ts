@@ -1,7 +1,7 @@
 import { pointsForLimit, nextRungBelow, LADDER, isCleanDay, lifetimePoints, streaks, computeProgress } from "./progress";
-import type { DoomguardDay } from "../modules/doomguardnative";
+import type { UnhookDay } from "../modules/unhooknative";
 
-const day = (date: string, seconds: number, limitMinutes?: number): DoomguardDay => ({
+const day = (date: string, seconds: number, limitMinutes?: number): UnhookDay => ({
   date, seconds, count: 0, shorts: 0, ...(limitMinutes !== undefined ? { limitMinutes } : {}),
 });
 

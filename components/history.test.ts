@@ -1,7 +1,7 @@
 import { buildView, fromDayIndex, toDayIndex } from "./history";
-import type { DoomguardDay } from "../modules/doomguardnative";
+import type { UnhookDay } from "../modules/unhooknative";
 
-const day = (date: string, seconds: number, count = 0, shorts = 0): DoomguardDay => ({
+const day = (date: string, seconds: number, count = 0, shorts = 0): UnhookDay => ({
   date,
   seconds,
   count,

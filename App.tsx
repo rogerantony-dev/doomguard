@@ -33,9 +33,9 @@ import {
   setLimit,
   setMode,
   setStrict,
-  type DoomguardMode,
-  type DoomguardStatus,
-} from "./modules/doomguardnative";
+  type UnhookMode,
+  type UnhookStatus,
+} from "./modules/unhooknative";
 import { computeProgress, type Progress } from "./components/progress";
 import { CAT_THRESHOLDS } from "./components/cats";
 import { ProgressStrip } from "./components/ProgressStrip";
@@ -82,7 +82,7 @@ function useMountEffect(effect: () => void | (() => void)) {
 }
 
 export default function App() {
-  const [status, setStatus] = useState<DoomguardStatus | null>(() => getStatus());
+  const [status, setStatus] = useState<UnhookStatus | null>(() => getStatus());
   const [confirmGuilt, setConfirmGuilt] = useState(false);
   const [screen, setScreen] = useState<"home" | "history">("home");
   const [catsOpen, setCatsOpen] = useState(false);
@@ -154,7 +154,7 @@ export default function App() {
   const overlayDone = status?.overlay === true;
   const accessibilityDone = status?.accessibilityRunning === true;
   const allReady = overlayDone && accessibilityDone;
-  const mode: DoomguardMode = status?.mode ?? "guilt";
+  const mode: UnhookMode = status?.mode ?? "guilt";
   const seconds = status?.todaySeconds ?? 0;
   const count = status?.todayCount ?? 0;
   const shorts = status?.todayShorts ?? 0;
@@ -195,7 +195,7 @@ export default function App() {
   });
 
   const changeMode = useCallback(
-    (next: DoomguardMode) => {
+    (next: UnhookMode) => {
       if (next === mode) return;
       // Leaving Block mode is the moment of weakness, so make them confirm.
       if (mode === "block" && next === "guilt") {
@@ -362,13 +362,13 @@ function Dashboard({
   onOpenHistory,
   onOpenCats,
 }: {
-  mode: DoomguardMode;
+  mode: UnhookMode;
   seconds: number;
   count: number;
   shorts: number;
   limit: number;
   autoBlocked: boolean;
-  onChangeMode: (mode: DoomguardMode) => void;
+  onChangeMode: (mode: UnhookMode) => void;
   onOpenHistory: () => void;
   onOpenCats: () => void;
 }) {
@@ -591,7 +591,7 @@ function LimitPicker({
         <Pressable onPress={() => {}} className="gap-1.5 rounded-[28px] bg-panel p-6">
           <Text className="text-[21px] font-semibold text-bone">Daily limit</Text>
           <Text className="text-[14px] leading-snug text-ash">
-            Cross it and Doomguard blocks the reels.
+            Cross it and Unhook blocks the reels.
           </Text>
           <View className="mt-4 flex-row flex-wrap justify-between gap-y-2.5">
             {LIMIT_OPTIONS.map((m) => {
@@ -714,8 +714,8 @@ function ModeSwitch({
   mode,
   onChangeMode,
 }: {
-  mode: DoomguardMode;
-  onChangeMode: (mode: DoomguardMode) => void;
+  mode: UnhookMode;
+  onChangeMode: (mode: UnhookMode) => void;
 }) {
   return (
     <View className="gap-3">
@@ -737,7 +737,7 @@ function ModeSwitch({
       <Text className="px-0.5 text-[13.5px] leading-snug text-ash">
         {mode === "guilt"
           ? "Guilt. Watch all you want, the clock keeps time."
-          : "Block. Doomguard backs you out of every reel and short."}
+          : "Block. Unhook backs you out of every reel and short."}
       </Text>
     </View>
   );

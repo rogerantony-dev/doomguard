@@ -10,7 +10,7 @@
     android:targetCellWidth="4"
     android:targetCellHeight="2"
     android:updatePeriodMillis="0"
-    android:initialLayout="@layout/doomguard_widget"
-    android:previewLayout="@layout/doomguard_widget"
+    android:initialLayout="@layout/unhook_widget"
+    android:previewLayout="@layout/unhook_widget"
     android:resizeMode="horizontal|vertical"
     android:widgetCategory="home_screen" />
