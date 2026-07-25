@@ -205,8 +205,6 @@ const howItWorks = `<div class="scr">
     <div class="optgrid">
       ${[["15m",0],["30m",1],["45m",0],["1h",0],["1h 30",0],["2h",0]].map(([l,s])=>`<div class="o2 ${s?"sel":""}">${l}</div>`).join("")}
     </div>
-    <div class="trow"><div><h6>Block at limit</h6><p>Wall reels off once you hit it. Snooze 5 min at a time if you must.</p></div><div class="sw on"><i></i></div></div>
-    <div class="trow"><div><h6 style="display:flex;align-items:center;gap:7px">Strict mode ${lock(T.faint)}</h6><p>No snooze. Locked until midnight.</p></div><div class="sw"><i></i></div></div>
   </div>
   <div class="foot">${dots(2)}<div class="cta">Continue</div></div>
 </div>`;

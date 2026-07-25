@@ -23,7 +23,6 @@ import { C } from "./console";
 import { CATS } from "./cats";
 import { KitCatClock } from "./KitCatClock";
 import {
-  setBlockAtLimit,
   setLimit,
   setMode,
   setStrict,
@@ -87,7 +86,6 @@ export function OnboardingFlow({
   // Mode + its options are chosen on pages 6-7, persisted as you go.
   const [selMode, setSelMode] = useState<UnhookMode>("guilt");
   const [lim, setLim] = useState(30);
-  const [blockLim, setBlockLim] = useState(true);
 
   const chooseMode = (m: UnhookMode) => {
     setSelMode(m);
@@ -98,11 +96,6 @@ export function OnboardingFlow({
   const pickLimit = (n: number) => {
     setLim(n);
     setLimit(n);
-  };
-  const toggleBlockLim = () => {
-    const v = !blockLim;
-    setBlockLim(v);
-    setBlockAtLimit(v);
   };
 
   return (
@@ -236,13 +229,6 @@ export function OnboardingFlow({
                     );
                   })}
                 </View>
-                <OnbToggle
-                  title="Block at limit"
-                  body="Wall reels off once you hit it. Snooze 5 min at a time if you must."
-                  value={blockLim}
-                  onToggle={toggleBlockLim}
-                  first
-                />
               </>
             ) : (
               <Text
@@ -355,64 +341,6 @@ function ModeCard({
           <View style={{ width: 11, height: 11, borderRadius: 999, backgroundColor: accent }} />
         ) : null}
       </View>
-    </Pressable>
-  );
-}
-
-function OnbToggle({
-  title,
-  body,
-  value,
-  onToggle,
-  first,
-  lock,
-}: {
-  title: string;
-  body: string;
-  value: boolean;
-  onToggle: () => void;
-  first?: boolean;
-  lock?: boolean;
-}) {
-  return (
-    <View
-      className={`flex-row items-center justify-between gap-4 border-t border-bone/10 py-4 ${
-        first ? "mt-5" : ""
-      }`}
-    >
-      <View className="flex-1">
-        <View className="flex-row items-center gap-1.5">
-          <Text className="text-[15px] font-semibold text-bone">{title}</Text>
-          {lock ? <Ionicons name="lock-closed" size={13} color={C.dim} /> : null}
-        </View>
-        <Text className="mt-1 text-[12.5px] leading-snug text-ash">{body}</Text>
-      </View>
-      <OnbSwitch value={value} onToggle={onToggle} />
-    </View>
-  );
-}
-
-function OnbSwitch({ value, onToggle }: { value: boolean; onToggle: () => void }) {
-  return (
-    <Pressable
-      onPress={onToggle}
-      style={{
-        width: 46,
-        height: 27,
-        borderRadius: 999,
-        backgroundColor: value ? C.toxic : "#3A3A35",
-        justifyContent: "center",
-      }}
-    >
-      <View
-        style={{
-          width: 21,
-          height: 21,
-          borderRadius: 999,
-          backgroundColor: "#FFFFFF",
-          marginLeft: value ? 22 : 3,
-        }}
-      />
     </Pressable>
   );
 }
