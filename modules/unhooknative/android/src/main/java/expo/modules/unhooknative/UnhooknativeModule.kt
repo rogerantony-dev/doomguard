@@ -6,6 +6,10 @@ import android.text.TextUtils
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 import org.json.JSONObject
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Date
+import java.util.Locale
 
 /**
  * Reports the live state of the two permissions the Reel counter needs, plus
@@ -30,6 +34,7 @@ class UnhooknativeModule : Module() {
         "todaySeconds" to todaySeconds(context),
         "mode" to currentMode(context),
         "limitMinutes" to limitMinutes(context),
+        "pendingLimit" to pendingRaise(context),
         "autoBlocked" to autoBlocked(context),
         "lastCelebratedStreakMilestone" to prefs(context).getInt("lastCelebratedStreakMilestone", 0),
         "lastPointsCelebrated" to prefs(context).getInt("lastPointsCelebrated", 0),
@@ -42,9 +47,28 @@ class UnhooknativeModule : Module() {
       prefs(context).edit().putString("mode", normalized).apply()
     }
 
+    // Lowering the limit is instant; raising it is deferred to the next daily
+    // reset, so you can't escape a block by bumping the limit mid-scroll.
     Function("setLimit") { minutes: Int ->
       val context = appContext.reactContext?.applicationContext ?: return@Function
-      prefs(context).edit().putInt("limitMinutes", minutes.coerceIn(5, 240)).apply()
+      val v = minutes.coerceIn(5, 240)
+      val p = prefs(context)
+      if (v <= limitMinutes(context)) {
+        p.edit().putInt("limitMinutes", v).remove("pendingLimit").remove("pendingLimitDate").apply()
+      } else {
+        p.edit().putInt("pendingLimit", v).putString("pendingLimitDate", tomorrow()).apply()
+      }
+    }
+
+    // Set the limit immediately, no deferral — used only for the first-run pick
+    // in onboarding, before any commitment exists to protect.
+    Function("setLimitNow") { minutes: Int ->
+      val context = appContext.reactContext?.applicationContext ?: return@Function
+      prefs(context).edit()
+        .putInt("limitMinutes", minutes.coerceIn(5, 240))
+        .remove("pendingLimit")
+        .remove("pendingLimitDate")
+        .apply()
     }
 
     Function("getHistory") {
@@ -85,6 +109,7 @@ class UnhooknativeModule : Module() {
     "todaySeconds" to 0,
     "mode" to "guilt",
     "limitMinutes" to 30,
+    "pendingLimit" to 0,
     "autoBlocked" to false,
     "lastCelebratedStreakMilestone" to 0,
     "lastPointsCelebrated" to 0,
@@ -96,9 +121,37 @@ class UnhooknativeModule : Module() {
   private fun currentMode(context: Context): String =
     prefs(context).getString("mode", "guilt") ?: "guilt"
 
-  /** User-set daily limit, in minutes (default 30). */
-  private fun limitMinutes(context: Context): Int =
-    prefs(context).getInt("limitMinutes", 30).coerceIn(5, 240)
+  /**
+   * The daily limit in effect today (minutes, default 30). A raise queued for a
+   * day that has now arrived counts as effective, even before the service's
+   * midnight rollover has promoted it into the base pref. Read-only.
+   */
+  private fun limitMinutes(context: Context): Int {
+    val p = prefs(context)
+    val pending = p.getInt("pendingLimit", 0)
+    val pendingDate = p.getString("pendingLimitDate", null)
+    if (pending in 5..240 && pendingDate != null && today() >= pendingDate) {
+      return pending
+    }
+    return p.getInt("limitMinutes", 30).coerceIn(5, 240)
+  }
+
+  /** A limit raise still waiting for the next reset (0 if none pending). */
+  private fun pendingRaise(context: Context): Int {
+    val p = prefs(context)
+    val pending = p.getInt("pendingLimit", 0)
+    val pendingDate = p.getString("pendingLimitDate", null)
+    return if (pending in 5..240 && pendingDate != null && today() < pendingDate) pending else 0
+  }
+
+  private fun today(): String =
+    SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
+
+  private fun tomorrow(): String {
+    val cal = Calendar.getInstance()
+    cal.add(Calendar.DAY_OF_YEAR, 1)
+    return SimpleDateFormat("yyyy-MM-dd", Locale.US).format(cal.time)
+  }
 
   /**
    * True when a guilt-mode user has crossed their daily limit — i.e. reels are

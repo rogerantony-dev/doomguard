@@ -22,7 +22,7 @@ import * as IntentLauncher from "expo-intent-launcher";
 import { C } from "./console";
 import { CATS } from "./cats";
 import { KitCatClock } from "./KitCatClock";
-import { setLimit, setMode, type UnhookMode } from "../modules/unhooknative";
+import { setLimitNow, setMode, type UnhookMode } from "../modules/unhooknative";
 
 const ANDROID_PACKAGE = "com.rogerantony.unhook";
 const WASTE = "#E0913C";
@@ -88,7 +88,7 @@ export function OnboardingFlow({
   };
   const pickLimit = (n: number) => {
     setLim(n);
-    setLimit(n);
+    setLimitNow(n);
   };
 
   return (

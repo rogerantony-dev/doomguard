@@ -153,6 +153,7 @@ export default function App() {
   const count = status?.todayCount ?? 0;
   const shorts = status?.todayShorts ?? 0;
   const limit = status?.limitMinutes ?? 30;
+  const pendingLimit = status?.pendingLimit ?? 0;
   const autoBlocked = status?.autoBlocked ?? false;
 
   // Progression is a pure function of history + the current limit + which
@@ -208,10 +209,12 @@ export default function App() {
   const changeLimit = useCallback(
     (minutes: number) => {
       setLimit(minutes);
-      setLimitPickerOpen(false);
+      // A lower (or same) applies now, so dismiss; a raise is deferred, so keep
+      // the sheet open to show the "starts tomorrow" note.
+      if (minutes <= limit) setLimitPickerOpen(false);
       refresh();
     },
-    [refresh]
+    [limit, refresh]
   );
 
   return (
@@ -302,6 +305,7 @@ export default function App() {
       <LimitPicker
         visible={limitPickerOpen}
         value={limit}
+        pendingLimit={pendingLimit}
         onPick={changeLimit}
         onClose={() => setLimitPickerOpen(false)}
       />
@@ -536,11 +540,13 @@ function LimitChip({ value, onPress }: { value: number; onPress: () => void }) {
 function LimitPicker({
   visible,
   value,
+  pendingLimit,
   onPick,
   onClose,
 }: {
   visible: boolean;
   value: number;
+  pendingLimit: number;
   onPick: (minutes: number) => void;
   onClose: () => void;
 }) {
@@ -556,6 +562,7 @@ function LimitPicker({
           <View className="mt-4 flex-row flex-wrap justify-between gap-y-2.5">
             {LIMIT_OPTIONS.map((m) => {
               const sel = m === value;
+              const isPending = pendingLimit > 0 && m === pendingLimit;
               return (
                 <Pressable
                   key={m}
@@ -563,12 +570,13 @@ function LimitPicker({
                   className="w-[31%] items-center rounded-2xl border py-4 active:opacity-80"
                   style={{
                     backgroundColor: sel ? "rgba(224,145,60,0.14)" : "transparent",
-                    borderColor: sel ? WASTE : "rgba(242,241,236,0.10)",
+                    borderColor: sel ? WASTE : isPending ? "rgba(224,145,60,0.45)" : "rgba(242,241,236,0.10)",
+                    borderStyle: isPending && !sel ? "dashed" : "solid",
                   }}
                 >
                   <Text
                     className="text-[16px] font-semibold"
-                    style={{ color: sel ? WASTE : C.bone }}
+                    style={{ color: sel || isPending ? WASTE : C.bone }}
                   >
                     {fmtLimit(m)}
                   </Text>
@@ -576,6 +584,19 @@ function LimitPicker({
               );
             })}
           </View>
+          {pendingLimit > 0 ? (
+            <View className="mt-4 flex-row items-center gap-2.5 rounded-2xl bg-ink/50 px-3.5 py-3">
+              <Ionicons name="time-outline" size={15} color={C.ash} />
+              <Text className="flex-1 text-[12.5px] leading-snug text-ash">
+                <Text className="font-semibold text-bone">{fmtLimit(pendingLimit)}</Text> starts
+                tomorrow. Today stays at {fmtLimit(value)}.
+              </Text>
+            </View>
+          ) : (
+            <Text className="mt-4 text-[12px] leading-snug text-dim">
+              Lowering is instant. Raising takes effect at tomorrow's reset.
+            </Text>
+          )}
         </Pressable>
         </Animated.View>
       </Pressable>

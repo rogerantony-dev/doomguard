@@ -17,8 +17,10 @@ export type UnhookStatus = {
   todaySeconds: number;
   /** Current behavior: "guilt" counts reels, "block" bounces you out. */
   mode: UnhookMode;
-  /** User-set daily limit, in minutes. When crossed, surfaces turn red. */
+  /** Daily limit in effect today, in minutes. When crossed, surfaces turn red. */
   limitMinutes: number;
+  /** A limit raise queued for the next daily reset, in minutes (0 if none). */
+  pendingLimit: number;
   /** Right now, a guilt user is over their limit and reels are being bounced. */
   autoBlocked: boolean;
   /** Highest streak milestone already celebrated (so the moment doesn't re-fire). */
@@ -44,6 +46,7 @@ type NativeModule = {
   getStatus(): UnhookStatus;
   setMode(mode: UnhookMode): void;
   setLimit(minutes: number): void;
+  setLimitNow(minutes: number): void;
   getHistory(): UnhookDay[];
   consumeOpenCats(): boolean;
   markStreakCelebrated(milestone: number): void;
@@ -81,6 +84,16 @@ export function setLimit(minutes: number): void {
   if (!nativeModule) return;
   try {
     nativeModule.setLimit(minutes);
+  } catch {
+    // no-op if the native module isn't available
+  }
+}
+
+/** Set the limit immediately (no deferral). For the first-run onboarding pick. */
+export function setLimitNow(minutes: number): void {
+  if (!nativeModule) return;
+  try {
+    nativeModule.setLimitNow(minutes);
   } catch {
     // no-op if the native module isn't available
   }

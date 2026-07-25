@@ -61,7 +61,13 @@ class ReelAccessibilityService : AccessibilityService() {
     private val debug = false
 
     /** Daily limit in minutes — user-set, read live from prefs (mirrors dashboard + widget). */
-    private fun limitMinutes(): Int = prefs.getInt("limitMinutes", 30).coerceIn(5, 240)
+    /** Daily limit in effect today; a raise queued for today counts even before rollover. */
+    private fun limitMinutes(): Int {
+        val pending = prefs.getInt("pendingLimit", 0)
+        val pendingDate = prefs.getString("pendingLimitDate", null)
+        if (pending in 5..240 && pendingDate != null && today() >= pendingDate) return pending
+        return prefs.getInt("limitMinutes", 30).coerceIn(5, 240)
+    }
 
     private var windowManager: WindowManager? = null
     private var pill: View? = null
@@ -914,22 +920,33 @@ class ReelAccessibilityService : AccessibilityService() {
         val storedDate = prefs.getString("date", null)
         if (storedDate != today) {
             // Archive the finishing day into history before we zero it, so the
-            // graph keeps it. Only days with real activity are stored.
+            // graph keeps it. Only days with real activity are stored. Use the
+            // raw stored limit so a raise queued for the new day doesn't
+            // retroactively raise yesterday's.
             if (storedDate != null) {
                 val seconds = prefs.getInt("seconds", 0)
                 val count = prefs.getInt("count", 0)
                 val shorts = prefs.getInt("shortsCount", 0)
                 if (seconds > 0 || count > 0 || shorts > 0) {
-                    archiveDay(storedDate, seconds, count, shorts, limitMinutes())
+                    val finishingLimit = prefs.getInt("limitMinutes", 30).coerceIn(5, 240)
+                    archiveDay(storedDate, seconds, count, shorts, finishingLimit)
                 }
             }
-            prefs.edit()
+            val editor = prefs.edit()
                 .putString("date", today)
                 .putInt("count", 0)
                 .putInt("shortsCount", 0)
                 .putInt("seconds", 0)
                 .remove("nudgeFiredToday")
-                .apply()
+            // Promote a queued limit raise now that its day has arrived.
+            val pending = prefs.getInt("pendingLimit", 0)
+            val pendingDate = prefs.getString("pendingLimitDate", null)
+            if (pending in 5..240 && pendingDate != null && today >= pendingDate) {
+                editor.putInt("limitMinutes", pending)
+                    .remove("pendingLimit")
+                    .remove("pendingLimitDate")
+            }
+            editor.apply()
         }
     }
 
