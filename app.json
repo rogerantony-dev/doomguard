@@ -27,11 +27,11 @@
       "expo-dev-client",
       "./plugin/withReelCounter"
     ],
+    "owner": "rogerantony",
     "extra": {
       "eas": {
-        "projectId": "693a0d53-05c2-4413-8ac9-6741f667c438"
+        "projectId": "2d8eccb0-5208-4303-9512-3ca39e127e4a"
       }
-    },
-    "owner": "rogerantony"
+    }
   }
 }
