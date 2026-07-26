@@ -360,10 +360,14 @@ function Dashboard({
   onOpenCats: () => void;
 }) {
   const minutes = Math.floor(seconds / 60);
+  // Once today's limit is crossed we stay on the limit page for the rest of the
+  // day (seconds only climb), even while a granted grace minute briefly unblocks
+  // reels — so the Guilt/Block switcher doesn't flash back mid-session.
+  const limitReached = mode === "guilt" && seconds >= limit * 60;
 
   return (
     <View className="grow">
-      {autoBlocked ? (
+      {limitReached ? (
         <AutoBlockedHero minutes={minutes} limit={limit} />
       ) : mode === "guilt" ? (
         <GuiltHero minutes={minutes} count={count} shorts={shorts} limit={limit} />
@@ -371,7 +375,7 @@ function Dashboard({
         <BlockHero count={count} />
       )}
 
-      {autoBlocked ? (
+      {limitReached ? (
         <View className="mt-8 gap-3">
           {graceLeft > 0 ? (
             <Pressable
@@ -384,9 +388,9 @@ function Dashboard({
             </Pressable>
           ) : null}
           <View className="flex-row items-center justify-center gap-2 rounded-2xl bg-panel py-4">
-            <Ionicons name="lock-closed" size={15} color={C.dim} />
+            <Ionicons name={autoBlocked ? "lock-closed" : "time-outline"} size={15} color={C.dim} />
             <Text className="text-[14px] font-medium text-ash">
-              Blocked · unlocks at midnight
+              {autoBlocked ? "Blocked · unlocks at midnight" : "Extra minute · reels open"}
             </Text>
           </View>
         </View>

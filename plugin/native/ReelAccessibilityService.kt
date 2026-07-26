@@ -314,12 +314,19 @@ class ReelAccessibilityService : AccessibilityService() {
      * polling; false once it's pulled (you left the reel / the app), which stops it.
      */
     private fun refreshPill(): Boolean {
-        if (isBlockingNow() || debug) return false
+        if (debug) return false
         if (!overlayShown) return false
         val root = rootInActiveWindow ?: return true // transient; keep checking
         val pkg = root.packageName?.toString()
         if (pkg != instagramPackage && pkg != youtubePackage) {
             stopReelTimer(); hideOverlay(); return false // left the app
+        }
+        if (isBlockingNow()) {
+            // Blocking now: on Instagram the cat cover is the feedback, so pull the
+            // scroll pill so it doesn't linger on top of the blocked feed. (YouTube
+            // shows its own "Blocked" pill via renderBlocked from the event path.)
+            if (pkg == instagramPackage) { stopReelTimer(); hideOverlay() }
+            return false
         }
         val onReel = if (pkg == youtubePackage) detectShortGuilt(root) != null else onReelSurface(root)
         if (onReel) return true
