@@ -12,6 +12,10 @@
     "android": {
       "package": "com.rogerantony.unhook",
       "versionCode": 6,
+      "blockedPermissions": [
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE"
+      ],
       "adaptiveIcon": {
         "backgroundColor": "#2E9466",
         "foregroundImage": "./assets/android-icon-foreground.png",

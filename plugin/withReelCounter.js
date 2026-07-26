@@ -1,12 +1,30 @@
 const {
   withAndroidManifest,
   withDangerousMod,
+  withStringsXml,
   AndroidConfig,
 } = require("@expo/config-plugins");
 const fs = require("fs");
 const path = require("path");
 
 const ACCESSIBILITY_CONFIG_RES = "@xml/unhook_accessibility_config";
+
+/**
+ * Shown under the service name in Settings > Accessibility.
+ *
+ * Keep these truthful and specific. They are the user-facing justification for
+ * a service that can read window content, and Play reviewers read them when
+ * assessing an Accessibility API declaration. Avoid apostrophes: strings.xml
+ * treats them as escape characters.
+ */
+const ACCESSIBILITY_SUMMARY =
+  "Counts your Reels and Shorts time so Unhook can time or block them.";
+
+const ACCESSIBILITY_DESCRIPTION =
+  "Unhook uses this service to tell when Instagram Reels or YouTube Shorts is " +
+  "on screen, so it can count the time you spend there and, once you reach the " +
+  "daily limit you set, close the feed. It reads screen content only inside " +
+  "Instagram and YouTube. Nothing is recorded, and no data leaves your phone.";
 
 /**
  * Wires up the native Reel-counter:
@@ -21,8 +39,29 @@ const ACCESSIBILITY_CONFIG_RES = "@xml/unhook_accessibility_config";
  */
 function withReelCounter(config) {
   config = withReelCounterManifest(config);
+  config = withReelCounterStrings(config);
   config = withReelCounterNativeFiles(config);
   return config;
+}
+
+/** The summary/description the accessibility config XML points at. */
+function withReelCounterStrings(config) {
+  return withStringsXml(config, (config) => {
+    config.modResults = AndroidConfig.Strings.setStringItem(
+      [
+        {
+          $: { name: "unhook_accessibility_summary" },
+          _: ACCESSIBILITY_SUMMARY,
+        },
+        {
+          $: { name: "unhook_accessibility_description" },
+          _: ACCESSIBILITY_DESCRIPTION,
+        },
+      ],
+      config.modResults
+    );
+    return config;
+  });
 }
 
 function withReelCounterManifest(config) {

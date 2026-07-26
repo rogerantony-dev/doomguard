@@ -1,9 +1,24 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  android:description and android:summary are what a user reads in Settings >
+  Accessibility before turning this on, and what a Play reviewer reads when
+  judging why an app in this category needs the Accessibility API at all.
+  Leaving them unset on a service that retrieves window content is the fastest
+  way to get the listing rejected. Both live in strings.xml, injected by
+  plugin/withReelCounter.js.
+
+  isAccessibilityTool is false because this is not an assistive tool for users
+  with disabilities; it uses the API to recognise a Reels/Shorts player.
+  Declaring that honestly is what the policy asks for.
+-->
 <accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
     android:accessibilityEventTypes="typeWindowStateChanged|typeWindowContentChanged|typeViewScrolled"
     android:accessibilityFeedbackType="feedbackGeneric"
     android:accessibilityFlags="flagDefault|flagRetrieveInteractiveWindows|flagReportViewIds"
     android:canRetrieveWindowContent="true"
     android:canPerformGestures="true"
+    android:isAccessibilityTool="false"
+    android:summary="@string/unhook_accessibility_summary"
+    android:description="@string/unhook_accessibility_description"
     android:notificationTimeout="100"
     android:packageNames="com.instagram.android,com.google.android.youtube" />
