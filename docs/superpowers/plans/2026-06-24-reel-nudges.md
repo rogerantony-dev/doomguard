@@ -139,7 +139,7 @@ describe("priority + once-per-day", () => {
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `cd /Users/timeless/Developer/doomguard && npx jest components/nudges.test.ts`
+Run: `cd <repo root> && npx jest components/nudges.test.ts`
 Expected: FAIL — `Cannot find module './nudges'`.
 
 - [ ] **Step 3: Implement `components/nudges.ts`**
@@ -224,7 +224,7 @@ export function pickNudge(s: NudgeState): string | null {
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `cd /Users/timeless/Developer/doomguard && npx jest components/nudges.test.ts`
+Run: `cd <repo root> && npx jest components/nudges.test.ts`
 Expected: PASS (all green).
 
 - [ ] **Step 5: Commit**
@@ -383,7 +383,7 @@ In `ensureToday()`, add `nudgeFiredToday` to the reset `edit()` chain (the block
 
 - [ ] **Step 6: Verify compile (TS unaffected; Kotlin built in Task 7)**
 
-Run: `cd /Users/timeless/Developer/doomguard && npx tsc --noEmit`
+Run: `cd <repo root> && npx tsc --noEmit`
 Expected: PASS.
 
 - [ ] **Step 7: Commit**
@@ -636,7 +636,7 @@ Add a new section after the cat-cover code (e.g. after `removeCatCover()`, ~line
 
 - [ ] **Step 5: Verify compile (TS)**
 
-Run: `cd /Users/timeless/Developer/doomguard && npx tsc --noEmit`
+Run: `cd <repo root> && npx tsc --noEmit`
 Expected: PASS (TS unchanged; Kotlin built in Task 7).
 
 - [ ] **Step 6: Commit**
@@ -744,7 +744,7 @@ Also, in the "left a tracked app" branch of `onAccessibilityEvent` (the block en
 
 - [ ] **Step 5: Verify compile (TS)**
 
-Run: `cd /Users/timeless/Developer/doomguard && npx tsc --noEmit`
+Run: `cd <repo root> && npx tsc --noEmit`
 Expected: PASS.
 
 - [ ] **Step 6: Commit**
@@ -808,7 +808,7 @@ export function consumeOpenCats(): boolean {
 
 - [ ] **Step 3: Typecheck**
 
-Run: `cd /Users/timeless/Developer/doomguard && npx tsc --noEmit`
+Run: `cd <repo root> && npx tsc --noEmit`
 Expected: PASS.
 
 - [ ] **Step 4: Commit**
@@ -947,7 +947,7 @@ Change the `CatsButton` press handler to the prop, and delete the `<CatGallery .
 
 - [ ] **Step 5: Typecheck**
 
-Run: `cd /Users/timeless/Developer/doomguard && npx tsc --noEmit`
+Run: `cd <repo root> && npx tsc --noEmit`
 Expected: PASS (no unused `catsOpen`/`CatGallery` left in `Dashboard`).
 
 - [ ] **Step 6: Commit**
@@ -965,19 +965,19 @@ git commit -m "Nudges: open cat gallery on resume when the service requests it"
 
 - [ ] **Step 1: Full test suite**
 
-Run: `cd /Users/timeless/Developer/doomguard && npx jest`
+Run: `cd <repo root> && npx jest`
 Expected: PASS (history + nudges suites green).
 
 - [ ] **Step 2: Typecheck**
 
-Run: `cd /Users/timeless/Developer/doomguard && npx tsc --noEmit`
+Run: `cd <repo root> && npx tsc --noEmit`
 Expected: PASS.
 
 - [ ] **Step 3: Build & install standalone on device**
 
 Run (env as used for the history feature):
 ```bash
-cd /Users/timeless/Developer/doomguard
+cd <repo root>
 export ANDROID_HOME="$HOME/Library/Android/sdk"
 export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
 export PATH="$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$JAVA_HOME/bin:$PATH"

@@ -82,7 +82,7 @@ Replace the existing `ensureToday()` (lines 835-846):
 
 - [ ] **Step 3: Confirm it compiles (no jest path here — this is device code)**
 
-Run: `cd /Users/timeless/Developer/doomguard && npx tsc --noEmit`
+Run: `cd <repo root> && npx tsc --noEmit`
 Expected: PASS (TypeScript is unaffected; this confirms nothing else broke). Kotlin compiles in Task 6's Android build.
 
 - [ ] **Step 4: Commit**
@@ -220,7 +220,7 @@ export function getHistory(): DoomguardDay[] {
 
 - [ ] **Step 5: Typecheck**
 
-Run: `cd /Users/timeless/Developer/doomguard && npx tsc --noEmit`
+Run: `cd <repo root> && npx tsc --noEmit`
 Expected: PASS.
 
 - [ ] **Step 6: Commit**
@@ -254,7 +254,7 @@ git commit -m "History: expose getHistory() from the native module and JS"
 
 Run:
 ```bash
-cd /Users/timeless/Developer/doomguard && npx expo install --dev jest-expo && npm install --save-dev jest @types/jest
+cd <repo root> && npx expo install --dev jest-expo && npm install --save-dev jest @types/jest
 ```
 Expected: `jest-expo`, `jest`, `@types/jest` appear under `devDependencies` in `package.json`.
 
@@ -352,7 +352,7 @@ describe("buildView all", () => {
 
 - [ ] **Step 4: Run tests to verify they fail**
 
-Run: `cd /Users/timeless/Developer/doomguard && npx jest components/history.test.ts`
+Run: `cd <repo root> && npx jest components/history.test.ts`
 Expected: FAIL — `Cannot find module './history'`.
 
 - [ ] **Step 5: Implement `components/history.ts`**
@@ -445,7 +445,7 @@ export function buildView(history: DoomguardDay[], range: HistoryRange, today: s
 
 - [ ] **Step 6: Run tests to verify they pass**
 
-Run: `cd /Users/timeless/Developer/doomguard && npx jest components/history.test.ts`
+Run: `cd <repo root> && npx jest components/history.test.ts`
 Expected: PASS (all tests green).
 
 - [ ] **Step 7: Commit**
@@ -839,7 +839,7 @@ import React from "react";
 
 - [ ] **Step 3: Typecheck**
 
-Run: `cd /Users/timeless/Developer/doomguard && npx tsc --noEmit`
+Run: `cd <repo root> && npx tsc --noEmit`
 Expected: PASS.
 
 - [ ] **Step 4: Commit**
@@ -988,7 +988,7 @@ In `Dashboard`'s JSX, add a button right after `<CatsButton ... />` (line 317):
 
 - [ ] **Step 6: Typecheck**
 
-Run: `cd /Users/timeless/Developer/doomguard && npx tsc --noEmit`
+Run: `cd <repo root> && npx tsc --noEmit`
 Expected: PASS.
 
 - [ ] **Step 7: Commit**
@@ -1006,17 +1006,17 @@ git commit -m "History: add a View history button and screen navigation"
 
 - [ ] **Step 1: Run the full test suite**
 
-Run: `cd /Users/timeless/Developer/doomguard && npx jest`
+Run: `cd <repo root> && npx jest`
 Expected: PASS.
 
 - [ ] **Step 2: Typecheck the whole project**
 
-Run: `cd /Users/timeless/Developer/doomguard && npx tsc --noEmit`
+Run: `cd <repo root> && npx tsc --noEmit`
 Expected: PASS.
 
 - [ ] **Step 3: Build & launch on Android**
 
-Run: `cd /Users/timeless/Developer/doomguard && npx expo run:android`
+Run: `cd <repo root> && npx expo run:android`
 Expected: app builds and launches (this compiles the Kotlin changes from Tasks 1-2).
 
 - [ ] **Step 4: Manual verification checklist**
