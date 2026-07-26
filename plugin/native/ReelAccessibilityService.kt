@@ -357,8 +357,7 @@ class ReelAccessibilityService : AccessibilityService() {
     private fun currentMode(): String = prefs.getString("mode", "guilt") ?: "guilt"
 
     // --- Auto-block at the daily limit ----------------------------------------
-    /** Extra minutes granted today via the "1 more minute" button on the limit card. */
-    private val MAX_EXTRA_MINUTES = 3
+    /** Extra minutes granted today via the "1 more minute" button (on the dashboard). */
     private fun extraMinutes(): Int = prefs.getInt("extraMinutes", 0)
 
     /** Guilt user is over the daily limit (plus any granted grace): reels are bounced. */
@@ -1585,28 +1584,6 @@ class ReelAccessibilityService : AccessibilityService() {
         }, LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
         ).apply { topMargin = dp(18) })
-
-        // A hard-capped grace valve: up to 3 one-minute extensions per day.
-        if (extraMinutes() < MAX_EXTRA_MINUTES) {
-            val remaining = MAX_EXTRA_MINUTES - extraMinutes()
-            card.addView(TextView(this).apply {
-                text = "1 more minute · $remaining left"
-                gravity = Gravity.CENTER
-                setTextColor(Color.parseColor("#62625B"))
-                setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
-                typeface = Typeface.DEFAULT
-                setPadding(0, dp(12), 0, dp(6))
-                setOnClickListener {
-                    prefs.edit()
-                        .putInt("extraMinutes", extraMinutes() + 1)
-                        .remove("limitAlertDate") // re-announce once the grace minute is spent
-                        .apply()
-                    hideNudgeModal()
-                }
-            }, LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply { topMargin = dp(4) })
-        }
 
         val scrim = FrameLayout(this).apply {
             setBackgroundColor(Color.parseColor("#BF000000"))
