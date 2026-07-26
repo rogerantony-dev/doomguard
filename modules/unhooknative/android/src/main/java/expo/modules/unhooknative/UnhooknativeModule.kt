@@ -18,6 +18,8 @@ import java.util.Locale
  * writes (same app process), and Android's settings for permission state.
  */
 class UnhooknativeModule : Module() {
+  private val MAX_EXTRA_MINUTES = 3
+
   override fun definition() = ModuleDefinition {
     Name("Unhook")
 
@@ -36,6 +38,7 @@ class UnhooknativeModule : Module() {
         "limitMinutes" to limitMinutes(context),
         "pendingLimit" to pendingRaise(context),
         "autoBlocked" to autoBlocked(context),
+        "graceLeft" to (MAX_EXTRA_MINUTES - extraMinutes(context)).coerceAtLeast(0),
         "lastCelebratedStreakMilestone" to prefs(context).getInt("lastCelebratedStreakMilestone", 0),
         "lastPointsCelebrated" to prefs(context).getInt("lastPointsCelebrated", 0),
       )
@@ -69,6 +72,19 @@ class UnhooknativeModule : Module() {
         .remove("pendingLimit")
         .remove("pendingLimitDate")
         .apply()
+    }
+
+    // Grant one more minute of budget today (max 3), from the dashboard's blocked
+    // screen. Clears the once-a-day limit-card flag so it can re-announce.
+    Function("grantExtraMinute") {
+      val context = appContext.reactContext?.applicationContext
+      if (context != null) {
+        val p = prefs(context)
+        val used = p.getInt("extraMinutes", 0)
+        if (used < MAX_EXTRA_MINUTES) {
+          p.edit().putInt("extraMinutes", used + 1).remove("limitAlertDate").apply()
+        }
+      }
     }
 
     Function("getHistory") {
@@ -111,6 +127,7 @@ class UnhooknativeModule : Module() {
     "limitMinutes" to 30,
     "pendingLimit" to 0,
     "autoBlocked" to false,
+    "graceLeft" to 3,
     "lastCelebratedStreakMilestone" to 0,
     "lastPointsCelebrated" to 0,
   )

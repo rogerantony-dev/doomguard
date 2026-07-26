@@ -23,6 +23,7 @@ import {
   consumeOpenCats,
   getHistory,
   getStatus,
+  grantExtraMinute,
   markPointsCelebrated,
   markStreakCelebrated,
   setLimit,
@@ -155,6 +156,7 @@ export default function App() {
   const limit = status?.limitMinutes ?? 30;
   const pendingLimit = status?.pendingLimit ?? 0;
   const autoBlocked = status?.autoBlocked ?? false;
+  const graceLeft = status?.graceLeft ?? 0;
 
   // Progression is a pure function of history + the current limit + which
   // moments have already been shown. Recomputed whenever status refreshes.
@@ -217,6 +219,11 @@ export default function App() {
     [limit, refresh]
   );
 
+  const grantMinute = useCallback(() => {
+    grantExtraMinute();
+    refresh();
+  }, [refresh]);
+
   return (
     <View className="flex-1 bg-ink">
       <SafeAreaView className="flex-1">
@@ -251,6 +258,8 @@ export default function App() {
                 shorts={shorts}
                 limit={limit}
                 autoBlocked={autoBlocked}
+                graceLeft={graceLeft}
+                onGrantMinute={grantMinute}
                 onChangeMode={changeMode}
                 onOpenHistory={() => setScreen("history")}
                 onOpenCats={() => setCatsOpen(true)}
@@ -332,6 +341,8 @@ function Dashboard({
   shorts,
   limit,
   autoBlocked,
+  graceLeft,
+  onGrantMinute,
   onChangeMode,
   onOpenHistory,
   onOpenCats,
@@ -342,6 +353,8 @@ function Dashboard({
   shorts: number;
   limit: number;
   autoBlocked: boolean;
+  graceLeft: number;
+  onGrantMinute: () => void;
   onChangeMode: (mode: UnhookMode) => void;
   onOpenHistory: () => void;
   onOpenCats: () => void;
@@ -359,11 +372,23 @@ function Dashboard({
       )}
 
       {autoBlocked ? (
-        <View className="mt-8 flex-row items-center justify-center gap-2 rounded-2xl bg-panel py-4">
-          <Ionicons name="lock-closed" size={15} color={C.dim} />
-          <Text className="text-[14px] font-medium text-ash">
-            Blocked · unlocks at midnight
-          </Text>
+        <View className="mt-8 gap-3">
+          {graceLeft > 0 ? (
+            <Pressable
+              onPress={onGrantMinute}
+              className="flex-row items-center justify-center gap-2 rounded-2xl border border-bone/15 py-4 active:opacity-70"
+            >
+              <Ionicons name="add-circle-outline" size={16} color={C.bone} />
+              <Text className="text-[14px] font-semibold text-bone">1 more minute</Text>
+              <Text className="text-[12.5px] text-dim">· {graceLeft} left</Text>
+            </Pressable>
+          ) : null}
+          <View className="flex-row items-center justify-center gap-2 rounded-2xl bg-panel py-4">
+            <Ionicons name="lock-closed" size={15} color={C.dim} />
+            <Text className="text-[14px] font-medium text-ash">
+              Blocked · unlocks at midnight
+            </Text>
+          </View>
         </View>
       ) : (
         <View className="mt-8">

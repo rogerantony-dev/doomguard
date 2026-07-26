@@ -23,6 +23,8 @@ export type UnhookStatus = {
   pendingLimit: number;
   /** Right now, a guilt user is over their limit and reels are being bounced. */
   autoBlocked: boolean;
+  /** "1 more minute" grants still available today (0-3). */
+  graceLeft: number;
   /** Highest streak milestone already celebrated (so the moment doesn't re-fire). */
   lastCelebratedStreakMilestone: number;
   /** Lifetime points value at which cat-unlock reveals were last shown. */
@@ -47,6 +49,7 @@ type NativeModule = {
   setMode(mode: UnhookMode): void;
   setLimit(minutes: number): void;
   setLimitNow(minutes: number): void;
+  grantExtraMinute(): void;
   getHistory(): UnhookDay[];
   consumeOpenCats(): boolean;
   markStreakCelebrated(milestone: number): void;
@@ -94,6 +97,16 @@ export function setLimitNow(minutes: number): void {
   if (!nativeModule) return;
   try {
     nativeModule.setLimitNow(minutes);
+  } catch {
+    // no-op if the native module isn't available
+  }
+}
+
+/** Grant one more minute of budget today (max 3). Unblocks reels. */
+export function grantExtraMinute(): void {
+  if (!nativeModule) return;
+  try {
+    nativeModule.grantExtraMinute();
   } catch {
     // no-op if the native module isn't available
   }
