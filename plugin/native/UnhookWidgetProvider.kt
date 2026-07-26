@@ -76,6 +76,17 @@ class UnhookWidgetProvider : AppWidgetProvider() {
             views.setTextColor(R.id.widget_time, color)
             views.setTextColor(R.id.widget_limit, color)
 
+            // Cat mood: happy while fresh, drained once at/over the limit.
+            val frac = minutes.toDouble() / budget
+            val face = when {
+                minutes >= budget -> R.drawable.unhook_catface_5 // over/at limit — drained
+                frac >= 0.90 -> R.drawable.unhook_catface_4       // almost — worn
+                frac >= 0.65 -> R.drawable.unhook_catface_3       // getting close — tired
+                frac >= 0.35 -> R.drawable.unhook_catface_2       // halfway — content
+                else -> R.drawable.unhook_catface_1              // fresh — happy
+            }
+            views.setImageViewResource(R.id.widget_cat, face)
+
             views.setTextViewText(R.id.widget_reels, "$reels${plural(reels, " reel", " reels")}")
             views.setTextViewText(R.id.widget_shorts, "$shorts${plural(shorts, " short", " shorts")}")
 

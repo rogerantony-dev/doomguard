@@ -3,86 +3,103 @@
   Home-screen widget face — "Quiet" look. RemoteViews only supports basic
   layout/widget classes, so this stays nested LinearLayouts + TextViews. The
   amber "time wasted" readout and budget line mirror the in-app dashboard; the
-  service recolours the time + limit red once the daily limit is blown.
+  service recolours the time + limit red once the daily limit is blown. The cat
+  on the right shifts expression (happy -> drained) with how close you are.
 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/unhook_widget_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
+    android:orientation="horizontal"
     android:gravity="center_vertical"
     android:background="@drawable/unhook_widget_bg"
     android:padding="20dp">
 
-    <TextView
-        android:id="@+id/widget_brand"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="UNHOOK"
-        android:textColor="#9A9A92"
-        android:textSize="11sp"
-        android:textStyle="bold"
-        android:letterSpacing="0.16"
-        android:fontFamily="sans-serif-medium" />
-
     <LinearLayout
-        android:layout_width="wrap_content"
+        android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:orientation="horizontal"
-        android:baselineAligned="true">
+        android:layout_weight="1"
+        android:orientation="vertical">
 
         <TextView
-            android:id="@+id/widget_time"
+            android:id="@+id/widget_brand"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="0m"
+            android:text="UNHOOK"
+            android:textColor="#9A9A92"
+            android:textSize="11sp"
+            android:textStyle="bold"
+            android:letterSpacing="0.16"
+            android:fontFamily="sans-serif-medium" />
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:orientation="horizontal"
+            android:baselineAligned="true">
+
+            <TextView
+                android:id="@+id/widget_time"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="0m"
+                android:textColor="#E0913C"
+                android:textSize="36sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="9dp"
+                android:text="wasted today"
+                android:textColor="#9A9A92"
+                android:textSize="13sp" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/widget_limit"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:text="60 min left of your limit"
             android:textColor="#E0913C"
-            android:textSize="36sp"
-            android:textStyle="bold" />
+            android:textSize="11sp"
+            android:textStyle="bold"
+            android:letterSpacing="0.04"
+            android:fontFamily="sans-serif-medium" />
 
-        <TextView
+        <LinearLayout
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginStart="9dp"
-            android:text="wasted today"
-            android:textColor="#9A9A92"
-            android:textSize="13sp" />
+            android:layout_marginTop="14dp"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/widget_reels"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="0 reels"
+                android:textColor="#9A9A92"
+                android:textSize="14sp" />
+
+            <TextView
+                android:id="@+id/widget_shorts"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="18dp"
+                android:text="0 shorts"
+                android:textColor="#9A9A92"
+                android:textSize="14sp" />
+        </LinearLayout>
     </LinearLayout>
 
-    <TextView
-        android:id="@+id/widget_limit"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="6dp"
-        android:text="60 min left of your limit"
-        android:textColor="#E0913C"
-        android:textSize="11sp"
-        android:textStyle="bold"
-        android:letterSpacing="0.04"
-        android:fontFamily="sans-serif-medium" />
-
-    <LinearLayout
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="14dp"
-        android:orientation="horizontal">
-
-        <TextView
-            android:id="@+id/widget_reels"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="0 reels"
-            android:textColor="#9A9A92"
-            android:textSize="14sp" />
-
-        <TextView
-            android:id="@+id/widget_shorts"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="18dp"
-            android:text="0 shorts"
-            android:textColor="#9A9A92"
-            android:textSize="14sp" />
-    </LinearLayout>
+    <ImageView
+        android:id="@+id/widget_cat"
+        android:layout_width="76dp"
+        android:layout_height="76dp"
+        android:layout_marginStart="12dp"
+        android:scaleType="fitCenter"
+        android:src="@drawable/unhook_catface_1"
+        android:contentDescription="Cat mood" />
 </LinearLayout>
