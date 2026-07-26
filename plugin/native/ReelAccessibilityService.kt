@@ -71,7 +71,7 @@ class ReelAccessibilityService : AccessibilityService() {
 
     private var windowManager: WindowManager? = null
     private var pill: View? = null
-    private var dialView: StopwatchView? = null
+    private var catView: ImageView? = null
     private var pillLabel: TextView? = null
     private var overlayShown = false
 
@@ -1146,7 +1146,7 @@ class ReelAccessibilityService : AccessibilityService() {
         if (!Settings.canDrawOverlays(this)) return
 
         if (!overlayShown) buildPill()
-        dialView?.setProgress(currentSeconds() / (limitMinutes() * 60f))
+        catView?.setImageResource(catFaceRes())
         pillLabel?.setTextColor(Color.WHITE)
         pillLabel?.text = debugText ?: pillText(currentSeconds())
     }
@@ -1156,13 +1156,30 @@ class ReelAccessibilityService : AccessibilityService() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         if (!Settings.canDrawOverlays(this)) return
         if (!overlayShown) buildPill()
-        dialView?.setBlocked()
+        catView?.setImageResource(R.drawable.unhook_catface_5) // drained
         pillLabel?.setTextColor(Color.parseColor("#38C786"))
         pillLabel?.text = "Blocked"
     }
 
+    /** Cat face for the pill/widget by how close today's time is to the limit. */
+    private fun catFaceRes(): Int {
+        val used = currentSeconds() / 60
+        val budget = limitMinutes()
+        val frac = if (budget > 0) used.toDouble() / budget else 0.0
+        return when {
+            used >= budget -> R.drawable.unhook_catface_5
+            frac >= 0.90 -> R.drawable.unhook_catface_4
+            frac >= 0.65 -> R.drawable.unhook_catface_3
+            frac >= 0.35 -> R.drawable.unhook_catface_2
+            else -> R.drawable.unhook_catface_1
+        }
+    }
+
     private fun buildPill() {
-        val dial = StopwatchView(this)
+        val cat = ImageView(this).apply {
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            setImageResource(catFaceRes())
+        }
         val label = TextView(this).apply {
             setTextColor(Color.WHITE)
             setTextSize(TypedValue.COMPLEX_UNIT_SP, if (debug) 11f else 15f)
@@ -1177,8 +1194,8 @@ class ReelAccessibilityService : AccessibilityService() {
             background = pillBackground()
             elevation = dp(6).toFloat()
             addView(
-                dial,
-                LinearLayout.LayoutParams(dp(26), dp(26)).apply { rightMargin = dp(11) }
+                cat,
+                LinearLayout.LayoutParams(dp(30), dp(30)).apply { rightMargin = dp(10) }
             )
             addView(label)
         }
@@ -1198,7 +1215,7 @@ class ReelAccessibilityService : AccessibilityService() {
         runCatching {
             windowManager?.addView(container, params)
             pill = container
-            dialView = dial
+            catView = cat
             pillLabel = label
             overlayShown = true
         }
@@ -1210,7 +1227,7 @@ class ReelAccessibilityService : AccessibilityService() {
         stopPillTicker()
         pill?.let { view -> runCatching { windowManager?.removeView(view) } }
         pill = null
-        dialView = null
+        catView = null
         pillLabel = null
         overlayShown = false
         // Left the reel/app (debounced by hideRunnable): end this sitting and arm
@@ -1930,105 +1947,5 @@ class ReelAccessibilityService : AccessibilityService() {
             }
         }
         return results.toList()
-    }
-}
-
-/**
- * A minimal budget ring for the floating pill: a faint track that fills with the
- * fraction of today's daily limit spent on reels. Amber while under the limit,
- * red once it's blown (with a soft pulsing glow — a quiet nag that grows with the
- * minutes), and a full green ring while Block mode is holding the line.
- */
-private class StopwatchView(context: Context) : View(context) {
-
-    private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-
-    private var progress = 0f // 0..1+, fraction of the daily limit used
-    private var blocked = false
-    private var pulse = 0f // 0..1 glow breathing
-
-    private var pulseAnimator: ValueAnimator? = null
-
-    /** Fraction of the daily limit spent on reels (may exceed 1 when over). */
-    fun setProgress(value: Float) {
-        blocked = false
-        val v = value.coerceAtLeast(0f)
-        if (v != progress) {
-            progress = v
-            invalidate()
-        }
-    }
-
-    /** Block mode is holding the line — show a full green ring. */
-    fun setBlocked() {
-        if (!blocked) {
-            blocked = true
-            invalidate()
-        }
-    }
-
-    override fun onAttachedToWindow() {
-        super.onAttachedToWindow()
-        pulseAnimator = ValueAnimator.ofFloat(0f, 1f).apply {
-            duration = 1500L
-            repeatMode = ValueAnimator.REVERSE
-            repeatCount = ValueAnimator.INFINITE
-            addUpdateListener {
-                pulse = it.animatedValue as Float
-                if (!blocked && progress >= 1f) invalidate()
-            }
-            start()
-        }
-    }
-
-    override fun onDetachedFromWindow() {
-        pulseAnimator?.cancel()
-        super.onDetachedFromWindow()
-    }
-
-    override fun onDraw(canvas: Canvas) {
-        val w = width.toFloat()
-        val h = height.toFloat()
-        val cx = w / 2f
-        val cy = h / 2f
-        val r = minOf(w, h) * 0.40f
-        val stroke = minOf(w, h) * 0.13f
-
-        val over = !blocked && progress >= 1f
-        val accent = when {
-            blocked -> Color.parseColor("#38C786")
-            over -> Color.parseColor("#D2542F")
-            else -> Color.parseColor("#E0913C")
-        }
-
-        // Soft pulse behind the ring once the limit is blown.
-        if (over) {
-            val glowAlpha = ((0.28f + 0.30f * pulse) * 255f).toInt().coerceIn(0, 255)
-            paint.shader = RadialGradient(
-                cx, cy, r * 1.8f,
-                Color.argb(glowAlpha, 210, 84, 47), Color.TRANSPARENT,
-                Shader.TileMode.CLAMP
-            )
-            paint.style = Paint.Style.FILL
-            canvas.drawCircle(cx, cy, r * 1.8f, paint)
-            paint.shader = null
-        }
-
-        paint.style = Paint.Style.STROKE
-        paint.strokeWidth = stroke
-        paint.strokeCap = Paint.Cap.ROUND
-
-        // Faint track.
-        paint.color = Color.argb(40, Color.red(accent), Color.green(accent), Color.blue(accent))
-        canvas.drawCircle(cx, cy, r, paint)
-
-        // Progress arc — full when blocked or over, sweeping from 12 o'clock.
-        val sweep = if (blocked) 360f else progress.coerceAtMost(1f) * 360f
-        paint.color = accent
-        if (sweep >= 360f) {
-            canvas.drawCircle(cx, cy, r, paint)
-        } else if (sweep > 0f) {
-            canvas.drawArc(cx - r, cy - r, cx + r, cy + r, -90f, sweep, false, paint)
-        }
     }
 }
