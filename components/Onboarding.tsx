@@ -1,8 +1,7 @@
-import { type ReactNode, useRef, useState } from "react";
+import { useState } from "react";
 import {
   Image,
   Pressable,
-  ScrollView,
   Text,
   View,
   useWindowDimensions,
@@ -22,17 +21,12 @@ import * as IntentLauncher from "expo-intent-launcher";
 
 import { C } from "./console";
 import { CATS } from "./cats";
-import {
-  setBlockAtLimit,
-  setLimit,
-  setMode,
-  setStrict,
-  type UnhookMode,
-} from "../modules/unhooknative";
+import { KitCatClock } from "./KitCatClock";
+import { setLimitNow, setMode, type UnhookMode } from "../modules/unhooknative";
 
 const ANDROID_PACKAGE = "com.rogerantony.unhook";
 const WASTE = "#E0913C";
-const PAGES = 8;
+const PAGES = 4;
 
 function fmtLimit(min: number): string {
   if (min < 60) return `${min}m`;
@@ -57,8 +51,9 @@ function openOverlaySettings() {
 }
 
 /**
- * First-run flow: a swipeable, 6-page tour that sells the features before asking
- * for the two permissions. Shows only while setup is incomplete; once both
+ * First-run flow: a swipeable, 4-page tour. Two "sell" screens (the Kit-Cat
+ * clock, then the nudge + floating pill), a combined mode-and-limit screen, and
+ * the two permissions. Shows only while setup is incomplete; once both
  * permissions are live the app swaps this out for the dashboard automatically.
  */
 export function OnboardingFlow({
@@ -86,30 +81,14 @@ export function OnboardingFlow({
   // Mode + its options are chosen on pages 6-7, persisted as you go.
   const [selMode, setSelMode] = useState<UnhookMode>("guilt");
   const [lim, setLim] = useState(30);
-  const [blockLim, setBlockLim] = useState(true);
-  const [strict, setStrictLocal] = useState(false);
 
   const chooseMode = (m: UnhookMode) => {
     setSelMode(m);
     setMode(m);
-    if (m === "block") {
-      setStrictLocal(true);
-      setStrict(true);
-    }
   };
   const pickLimit = (n: number) => {
     setLim(n);
-    setLimit(n);
-  };
-  const toggleBlockLim = () => {
-    const v = !blockLim;
-    setBlockLim(v);
-    setBlockAtLimit(v);
-  };
-  const toggleStrict = () => {
-    const v = !strict;
-    setStrictLocal(v);
-    setStrict(v);
+    setLimitNow(n);
   };
 
   return (
@@ -126,31 +105,66 @@ export function OnboardingFlow({
             setPage(Math.round(e.nativeEvent.contentOffset.x / width))
           }
         >
-        {FEATURES.map((f, i) => (
-          <View key={i} style={{ width, height }} className="px-6 pb-3 pt-3">
-            <Header index={i} onSkip={() => goTo(PAGES - 1)} />
-            <View className="flex-1 items-center justify-center">
-              {f.art}
-              <View className="mt-9 items-center">
-                <Text
-                  className="text-center text-[30px] font-semibold text-bone"
-                  style={{ letterSpacing: -0.6, lineHeight: 34 }}
-                >
-                  {f.title}
-                </Text>
-                <Text
-                  className="mt-3 text-center text-[15px] leading-relaxed text-ash"
-                  style={{ maxWidth: 300 }}
-                >
-                  {f.sub}
-                </Text>
-              </View>
+        {/* 0 — Intro: the Kit-Cat clock sells the "time on a clock" idea. */}
+        <View style={{ width, height }} className="px-6 pb-3 pt-3">
+          <Header index={0} onSkip={() => goTo(PAGES - 1)} />
+          <View className="flex-1 items-center justify-center">
+            <KitCatClock usedMinutes={18} limitMinutes={30} />
+            <Text
+              className="mt-2 text-[11px] font-semibold uppercase text-dim"
+              style={{ letterSpacing: 0.5 }}
+            >
+              of your 30-min daily limit
+            </Text>
+            <View className="mt-9 items-center">
+              <Text
+                className="text-center text-[30px] font-semibold text-bone"
+                style={{ letterSpacing: -0.6, lineHeight: 34 }}
+              >
+                {"Your scroll,\non the clock."}
+              </Text>
+              <Text
+                className="mt-3 text-center text-[15px] leading-relaxed text-ash"
+                style={{ maxWidth: 300 }}
+              >
+                Unhook puts your Reels and Shorts time on a clock that runs down
+                as you scroll, and reddens when it's nearly gone. Or block them
+                cold.
+              </Text>
             </View>
           </View>
-        ))}
+        </View>
 
+        {/* 1 — Presence: the nudge card plus the floating pill. */}
         <View style={{ width, height }} className="px-6 pb-3 pt-3">
-          <Header index={5} onSkip={() => {}} />
+          <Header index={1} onSkip={() => goTo(PAGES - 1)} />
+          <View className="flex-1 items-center justify-center">
+            <NudgeArt />
+            <View className="mt-5">
+              <ScrollPill />
+            </View>
+            <View className="mt-9 items-center">
+              <Text
+                className="text-center text-[30px] font-semibold text-bone"
+                style={{ letterSpacing: -0.6, lineHeight: 34 }}
+              >
+                Always with you.
+              </Text>
+              <Text
+                className="mt-3 text-center text-[15px] leading-relaxed text-ash"
+                style={{ maxWidth: 300 }}
+              >
+                A floating timer and home-screen widget keep the time in sight.
+                And when you're spiraling, Unhook interrupts with a cat to watch
+                instead of the feed.
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        {/* 2 — How it works: mode choice and, for Guilt, the daily limit. */}
+        <View style={{ width, height }} className="px-6 pb-3 pt-3">
+          <Header index={2} onSkip={() => {}} />
           <View className="flex-1 justify-center">
             <Text className="text-[28px] font-semibold text-bone" style={{ letterSpacing: -0.5 }}>
               How should it work?
@@ -176,25 +190,19 @@ export function OnboardingFlow({
                 iconBg="rgba(56,199,134,0.14)"
                 icon="shield-checkmark"
                 title="Block"
-                body="Wall off every reel and short, all day. The strict option."
+                body="Wall off every reel and short, all day, from the moment you open the app."
                 onPress={() => chooseMode("block")}
               />
             </View>
-          </View>
-        </View>
-
-        <View style={{ width, height }} className="px-6 pb-3 pt-3">
-          <Header index={6} onSkip={() => {}} />
-          <View className="flex-1 justify-center">
             {selMode === "guilt" ? (
               <>
-                <Text className="text-[28px] font-semibold text-bone" style={{ letterSpacing: -0.5 }}>
-                  Set your limit.
+                <Text
+                  className="mt-6 text-[11px] font-semibold uppercase text-dim"
+                  style={{ letterSpacing: 0.5 }}
+                >
+                  Daily limit
                 </Text>
-                <Text className="mt-2.5 text-[15px] leading-snug text-ash">
-                  Unhook blocks the reels once you cross it.
-                </Text>
-                <View className="mt-6 flex-row flex-wrap justify-between gap-y-2.5">
+                <View className="mt-3 flex-row flex-wrap justify-between gap-y-2.5">
                   {[15, 30, 45, 60, 90, 120].map((m) => {
                     const sel = m === lim;
                     return (
@@ -214,42 +222,14 @@ export function OnboardingFlow({
                     );
                   })}
                 </View>
-                <OnbToggle
-                  title="Block at limit"
-                  body="Wall reels off once you hit it. Snooze 5 min at a time if you must."
-                  value={blockLim}
-                  onToggle={toggleBlockLim}
-                  first
-                />
-                <OnbToggle
-                  title="Strict mode"
-                  body="No snooze. Locked until midnight."
-                  value={strict}
-                  onToggle={toggleStrict}
-                  lock
-                />
               </>
             ) : (
-              <View className="items-center">
-                <View
-                  className="h-20 w-20 items-center justify-center rounded-full"
-                  style={{ backgroundColor: "rgba(56,199,134,0.14)" }}
-                >
-                  <Ionicons name="shield-checkmark" size={40} color={C.toxic} />
-                </View>
-                <Text
-                  className="mt-6 text-center text-[28px] font-semibold text-bone"
-                  style={{ letterSpacing: -0.5 }}
-                >
-                  Block mode.
-                </Text>
-                <Text
-                  className="mt-2.5 text-center text-[15px] leading-snug text-ash"
-                  style={{ maxWidth: 300 }}
-                >
-                  Reels and shorts stay walled off all day, locked until midnight.
-                </Text>
-              </View>
+              <Text
+                className="mt-6 text-[14px] leading-relaxed text-ash"
+                style={{ maxWidth: 320 }}
+              >
+                Reels and shorts stay walled off all day, locked until midnight.
+              </Text>
             )}
           </View>
         </View>
@@ -297,12 +277,8 @@ export function OnboardingFlow({
         {page < PAGES - 1 ? (
           <View className="mt-5">
             <Primary
-              label={page === 0 ? "Get started" : page <= 4 ? "Next" : "Continue"}
-              onPress={
-                page === 5
-                  ? () => goTo(selMode === "block" ? 7 : 6)
-                  : () => goTo(page + 1)
-              }
+              label={page === 0 ? "Get started" : page === 1 ? "Next" : "Continue"}
+              onPress={() => goTo(page + 1)}
             />
           </View>
         ) : null}
@@ -310,39 +286,6 @@ export function OnboardingFlow({
     </View>
   );
 }
-
-const FEATURES: { art: ReactNode; title: string; sub: string; cta: string }[] = [
-  {
-    art: <MiniWall fill={28} total={48} />,
-    title: "Your scroll,\non the clock.",
-    sub: "Unhook times the Reels and Shorts eating your day, and helps you stop.",
-    cta: "Get started",
-  },
-  {
-    art: <TimeArt />,
-    title: "See it stack up.",
-    sub: "Every wasted minute fills a daily limit you set. Cross it and it turns red.",
-    cta: "Next",
-  },
-  {
-    art: <BlockArt />,
-    title: "Or block it cold.",
-    sub: "Block mode backs you out of every reel and short the instant it appears.",
-    cta: "Next",
-  },
-  {
-    art: <NudgeArt />,
-    title: "A nudge to look away.",
-    sub: "Spiraling? Unhook interrupts with a nudge, and a cat to watch instead of the feed.",
-    cta: "Next",
-  },
-  {
-    art: <EverywhereArt />,
-    title: "Always in sight.",
-    sub: "A floating timer while you scroll, and a home-screen widget, so the damage is never hidden.",
-    cta: "Next",
-  },
-];
 
 function ModeCard({
   selected,
@@ -395,67 +338,9 @@ function ModeCard({
   );
 }
 
-function OnbToggle({
-  title,
-  body,
-  value,
-  onToggle,
-  first,
-  lock,
-}: {
-  title: string;
-  body: string;
-  value: boolean;
-  onToggle: () => void;
-  first?: boolean;
-  lock?: boolean;
-}) {
-  return (
-    <View
-      className={`flex-row items-center justify-between gap-4 border-t border-bone/10 py-4 ${
-        first ? "mt-5" : ""
-      }`}
-    >
-      <View className="flex-1">
-        <View className="flex-row items-center gap-1.5">
-          <Text className="text-[15px] font-semibold text-bone">{title}</Text>
-          {lock ? <Ionicons name="lock-closed" size={13} color={C.dim} /> : null}
-        </View>
-        <Text className="mt-1 text-[12.5px] leading-snug text-ash">{body}</Text>
-      </View>
-      <OnbSwitch value={value} onToggle={onToggle} />
-    </View>
-  );
-}
-
-function OnbSwitch({ value, onToggle }: { value: boolean; onToggle: () => void }) {
-  return (
-    <Pressable
-      onPress={onToggle}
-      style={{
-        width: 46,
-        height: 27,
-        borderRadius: 999,
-        backgroundColor: value ? C.toxic : "#3A3A35",
-        justifyContent: "center",
-      }}
-    >
-      <View
-        style={{
-          width: 21,
-          height: 21,
-          borderRadius: 999,
-          backgroundColor: "#FFFFFF",
-          marginLeft: value ? 22 : 3,
-        }}
-      />
-    </Pressable>
-  );
-}
-
 function Header({ index, onSkip }: { index: number; onSkip: () => void }) {
   const dim = index === PAGES - 1;
-  const canSkip = index >= 1 && index <= 4;
+  const canSkip = index <= 1;
   return (
     <View className="h-8 flex-row items-center justify-between">
       <View className="flex-row items-center gap-2.5">
@@ -519,78 +404,6 @@ function Primary({ label, onPress }: { label: string; onPress: () => void }) {
   );
 }
 
-function MiniWall({ fill, total }: { fill: number; total: number }) {
-  return (
-    <View
-      style={{ width: 230, flexDirection: "row", flexWrap: "wrap", gap: 5, justifyContent: "center" }}
-    >
-      {Array.from({ length: total }).map((_, i) => (
-        <View
-          key={i}
-          style={{
-            width: 15,
-            height: 15,
-            borderRadius: 3,
-            backgroundColor: i < fill ? WASTE : "transparent",
-            borderWidth: i < fill ? 0 : 1,
-            borderColor: "rgba(224,145,60,0.20)",
-          }}
-        />
-      ))}
-    </View>
-  );
-}
-
-function TimeArt() {
-  return (
-    <View className="items-center">
-      <View className="flex-row items-baseline">
-        <Text
-          className="font-semibold"
-          style={{ fontSize: 56, lineHeight: 56, color: WASTE, letterSpacing: -2, fontVariant: ["tabular-nums"] }}
-        >
-          23
-        </Text>
-        <Text className="ml-2 text-dim" style={{ fontSize: 18 }}>
-          min
-        </Text>
-      </View>
-      <View className="mt-4">
-        <MiniWall fill={23} total={60} />
-      </View>
-      <Text
-        className="mt-3 text-[11px] font-semibold uppercase"
-        style={{ color: WASTE, letterSpacing: 0.5 }}
-      >
-        37 min left of your 60-min limit
-      </Text>
-    </View>
-  );
-}
-
-function BlockArt() {
-  return (
-    <View className="items-center">
-      <View
-        className="h-24 w-24 items-center justify-center rounded-full"
-        style={{ backgroundColor: "rgba(56,199,134,0.14)" }}
-      >
-        <Ionicons name="shield-checkmark" size={44} color={C.toxic} />
-      </View>
-      <View className="mt-6 flex-row gap-1 rounded-2xl bg-panel p-1" style={{ width: 230 }}>
-        <View className="flex-1 flex-row items-center justify-center gap-1.5 rounded-xl py-3">
-          <Ionicons name="stopwatch-outline" size={15} color={C.ash} />
-          <Text className="text-[14px] font-semibold text-ash">Guilt</Text>
-        </View>
-        <View className="flex-1 flex-row items-center justify-center gap-1.5 rounded-xl bg-toxic py-3">
-          <Ionicons name="shield-checkmark" size={15} color={C.ink} />
-          <Text className="text-[14px] font-semibold text-ink">Block</Text>
-        </View>
-      </View>
-    </View>
-  );
-}
-
 function NudgeArt() {
   return (
     <View style={{ width: 250 }} className="rounded-[22px] border border-bone/10 bg-panel p-4">
@@ -616,31 +429,15 @@ function NudgeArt() {
   );
 }
 
-function EverywhereArt() {
+/** The floating scroll-timer pill, as it appears over Instagram. */
+function ScrollPill() {
   return (
-    <View className="items-center">
-      <View style={{ width: 250 }} className="rounded-[20px] border border-bone/10 bg-panel p-[18px]">
-        <Text className="text-[10px] font-bold uppercase text-ash" style={{ letterSpacing: 1.6 }}>
-          Unhook
-        </Text>
-        <View className="mt-1.5 flex-row items-baseline gap-2">
-          <Text className="font-bold" style={{ fontSize: 30, color: WASTE }}>
-            23m
-          </Text>
-          <Text className="text-[12px] text-ash">wasted today</Text>
-        </View>
-        <Text className="mt-1 text-[10px] font-bold uppercase" style={{ color: WASTE, letterSpacing: 0.4 }}>
-          37 min left of your limit
-        </Text>
-        <Text className="mt-2.5 text-[13px] text-ash">14 reels    7 shorts</Text>
-      </View>
-      <View
-        className="mt-4 flex-row items-center gap-2.5 rounded-[20px] border border-bone/10 px-4 py-2.5"
-        style={{ backgroundColor: "rgba(26,26,24,0.96)" }}
-      >
-        <PillRing frac={0.38} />
-        <Text className="text-[14px] font-bold text-white">23 min scrolling</Text>
-      </View>
+    <View
+      className="flex-row items-center gap-2.5 rounded-[20px] border border-bone/10 px-4 py-2.5"
+      style={{ backgroundColor: "rgba(26,26,24,0.96)" }}
+    >
+      <PillRing frac={0.38} />
+      <Text className="text-[14px] font-bold text-white">23 min scrolling</Text>
     </View>
   );
 }

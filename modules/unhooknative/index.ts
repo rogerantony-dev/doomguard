@@ -17,17 +17,10 @@ export type UnhookStatus = {
   todaySeconds: number;
   /** Current behavior: "guilt" counts reels, "block" bounces you out. */
   mode: UnhookMode;
-  /** User-set daily limit, in minutes. When crossed, surfaces turn red. */
+  /** Daily limit in effect today, in minutes. When crossed, surfaces turn red. */
   limitMinutes: number;
-  /** Guilt mode: auto-block reels once the daily limit is hit. */
-  blockAtLimit: boolean;
-  /** No snooze / no switching back once blocked. */
-  strictMode: boolean;
-  /**
-   * Strict is still enforced today, but the user asked to turn it off after
-   * hitting the limit, so it will flip off at the next daily reset.
-   */
-  strictOffPending: boolean;
+  /** A limit raise queued for the next daily reset, in minutes (0 if none). */
+  pendingLimit: number;
   /** Right now, a guilt user is over their limit and reels are being bounced. */
   autoBlocked: boolean;
   /** Highest streak milestone already celebrated (so the moment doesn't re-fire). */
@@ -53,8 +46,7 @@ type NativeModule = {
   getStatus(): UnhookStatus;
   setMode(mode: UnhookMode): void;
   setLimit(minutes: number): void;
-  setBlockAtLimit(enabled: boolean): void;
-  setStrict(enabled: boolean): void;
+  setLimitNow(minutes: number): void;
   getHistory(): UnhookDay[];
   consumeOpenCats(): boolean;
   markStreakCelebrated(milestone: number): void;
@@ -97,19 +89,11 @@ export function setLimit(minutes: number): void {
   }
 }
 
-export function setBlockAtLimit(enabled: boolean): void {
+/** Set the limit immediately (no deferral). For the first-run onboarding pick. */
+export function setLimitNow(minutes: number): void {
   if (!nativeModule) return;
   try {
-    nativeModule.setBlockAtLimit(enabled);
-  } catch {
-    // no-op if the native module isn't available
-  }
-}
-
-export function setStrict(enabled: boolean): void {
-  if (!nativeModule) return;
-  try {
-    nativeModule.setStrict(enabled);
+    nativeModule.setLimitNow(minutes);
   } catch {
     // no-op if the native module isn't available
   }

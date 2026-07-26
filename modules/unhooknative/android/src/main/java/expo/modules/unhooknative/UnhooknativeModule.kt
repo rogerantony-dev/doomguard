@@ -34,9 +34,7 @@ class UnhooknativeModule : Module() {
         "todaySeconds" to todaySeconds(context),
         "mode" to currentMode(context),
         "limitMinutes" to limitMinutes(context),
-        "blockAtLimit" to blockAtLimit(context),
-        "strictMode" to strictMode(context),
-        "strictOffPending" to strictOffPending(context),
+        "pendingLimit" to pendingRaise(context),
         "autoBlocked" to autoBlocked(context),
         "lastCelebratedStreakMilestone" to prefs(context).getInt("lastCelebratedStreakMilestone", 0),
         "lastPointsCelebrated" to prefs(context).getInt("lastPointsCelebrated", 0),
@@ -49,32 +47,28 @@ class UnhooknativeModule : Module() {
       prefs(context).edit().putString("mode", normalized).apply()
     }
 
+    // Lowering the limit is instant; raising it is deferred to the next daily
+    // reset, so you can't escape a block by bumping the limit mid-scroll.
     Function("setLimit") { minutes: Int ->
       val context = appContext.reactContext?.applicationContext ?: return@Function
-      prefs(context).edit().putInt("limitMinutes", minutes.coerceIn(5, 240)).apply()
-    }
-
-    Function("setBlockAtLimit") { enabled: Boolean ->
-      val context = appContext.reactContext?.applicationContext ?: return@Function
-      prefs(context).edit().putBoolean("blockAtLimit", enabled).apply()
-    }
-
-    Function("setStrict") { enabled: Boolean ->
-      val context = appContext.reactContext?.applicationContext ?: return@Function
+      val v = minutes.coerceIn(5, 240)
       val p = prefs(context)
-      when {
-        // Turning strict on is always immediate; cancel any queued turn-off.
-        enabled ->
-          p.edit().putBoolean("strictMode", true).remove("strictOffAt").apply()
-        // Already over today's limit: don't let strict be flipped off to escape
-        // a live block. Keep it on today and queue the turn-off for the next
-        // daily reset instead.
-        overLimit(context) ->
-          p.edit().putBoolean("strictMode", true).putString("strictOffAt", tomorrow()).apply()
-        // Under the limit: turning strict off takes effect right away.
-        else ->
-          p.edit().putBoolean("strictMode", false).remove("strictOffAt").apply()
+      if (v <= limitMinutes(context)) {
+        p.edit().putInt("limitMinutes", v).remove("pendingLimit").remove("pendingLimitDate").apply()
+      } else {
+        p.edit().putInt("pendingLimit", v).putString("pendingLimitDate", tomorrow()).apply()
       }
+    }
+
+    // Set the limit immediately, no deferral — used only for the first-run pick
+    // in onboarding, before any commitment exists to protect.
+    Function("setLimitNow") { minutes: Int ->
+      val context = appContext.reactContext?.applicationContext ?: return@Function
+      prefs(context).edit()
+        .putInt("limitMinutes", minutes.coerceIn(5, 240))
+        .remove("pendingLimit")
+        .remove("pendingLimitDate")
+        .apply()
     }
 
     Function("getHistory") {
@@ -115,9 +109,7 @@ class UnhooknativeModule : Module() {
     "todaySeconds" to 0,
     "mode" to "guilt",
     "limitMinutes" to 30,
-    "blockAtLimit" to true,
-    "strictMode" to false,
-    "strictOffPending" to false,
+    "pendingLimit" to 0,
     "autoBlocked" to false,
     "lastCelebratedStreakMilestone" to 0,
     "lastPointsCelebrated" to 0,
@@ -129,43 +121,27 @@ class UnhooknativeModule : Module() {
   private fun currentMode(context: Context): String =
     prefs(context).getString("mode", "guilt") ?: "guilt"
 
-  /** User-set daily limit, in minutes (default 30). */
-  private fun limitMinutes(context: Context): Int =
-    prefs(context).getInt("limitMinutes", 30).coerceIn(5, 240)
-
-  /** Auto-block reels once the daily limit is hit (guilt mode). Default on. */
-  private fun blockAtLimit(context: Context): Boolean =
-    prefs(context).getBoolean("blockAtLimit", true)
-
   /**
-   * No snooze / no switching back once blocked. Default off. Applies any
-   * queued turn-off once its day has arrived (strict can only be flipped off
-   * for real at the next daily reset once you're over the limit).
+   * The daily limit in effect today (minutes, default 30). A raise queued for a
+   * day that has now arrived counts as effective, even before the service's
+   * midnight rollover has promoted it into the base pref. Read-only.
    */
-  private fun strictMode(context: Context): Boolean {
+  private fun limitMinutes(context: Context): Int {
     val p = prefs(context)
-    if (!p.getBoolean("strictMode", false)) return false
-    val offAt = p.getString("strictOffAt", null)
-    if (offAt != null && today() >= offAt) {
-      p.edit().putBoolean("strictMode", false).remove("strictOffAt").apply()
-      return false
+    val pending = p.getInt("pendingLimit", 0)
+    val pendingDate = p.getString("pendingLimitDate", null)
+    if (pending in 5..240 && pendingDate != null && today() >= pendingDate) {
+      return pending
     }
-    return true
+    return p.getInt("limitMinutes", 30).coerceIn(5, 240)
   }
 
-  /** Strict is still on today, but a turn-off is queued for the next reset. */
-  private fun strictOffPending(context: Context): Boolean {
+  /** A limit raise still waiting for the next reset (0 if none pending). */
+  private fun pendingRaise(context: Context): Int {
     val p = prefs(context)
-    if (!p.getBoolean("strictMode", false)) return false
-    val offAt = p.getString("strictOffAt", null) ?: return false
-    return today() < offAt
-  }
-
-  /** Over today's daily limit. Stale (pre-rollover) days count as under. */
-  private fun overLimit(context: Context): Boolean {
-    val p = prefs(context)
-    if (p.getString("date", null) != today()) return false
-    return p.getInt("seconds", 0) >= limitMinutes(context) * 60
+    val pending = p.getInt("pendingLimit", 0)
+    val pendingDate = p.getString("pendingLimitDate", null)
+    return if (pending in 5..240 && pendingDate != null && today() < pendingDate) pending else 0
   }
 
   private fun today(): String =
@@ -178,14 +154,13 @@ class UnhooknativeModule : Module() {
   }
 
   /**
-   * True when a guilt-mode user has crossed their limit with auto-block on and
-   * isn't inside a 5-minute snooze — i.e. reels are being bounced right now.
+   * True when a guilt-mode user has crossed their daily limit — i.e. reels are
+   * being bounced right now. Guilt always blocks at the limit, locked until the
+   * next daily reset (no snooze).
    */
   private fun autoBlocked(context: Context): Boolean {
     if (currentMode(context) != "guilt") return false
-    if (!blockAtLimit(context)) return false
-    if (todaySeconds(context) < limitMinutes(context) * 60) return false
-    return System.currentTimeMillis() >= prefs(context).getLong("snoozeUntil", 0L)
+    return todaySeconds(context) >= limitMinutes(context) * 60
   }
 
   private fun serviceId(context: Context): String {
