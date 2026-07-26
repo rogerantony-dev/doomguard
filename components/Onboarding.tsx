@@ -72,6 +72,8 @@ export function OnboardingFlow({
     scrollX.value = e.contentOffset.x;
   });
 
+  const isLast = page === PAGES - 1;
+
   const goTo = (i: number) => {
     const c = Math.max(0, Math.min(PAGES - 1, i));
     ref.current?.scrollTo({ x: c * width, animated: true });
@@ -274,14 +276,23 @@ export function OnboardingFlow({
 
       <View className="px-6 pb-3 pt-2">
         <MorphDots scrollX={scrollX} width={width} />
-        {page < PAGES - 1 ? (
-          <View className="mt-5">
-            <Primary
-              label={page === 0 ? "Get started" : page === 1 ? "Next" : "Continue"}
-              onPress={() => goTo(page + 1)}
-            />
-          </View>
-        ) : null}
+        {/* The permissions page has nothing to advance to, but the button stays
+            mounted and merely hidden. Unmounting it shrinks this footer, which
+            grows the pager above, which re-measures `height` and re-lays out
+            every page — you see it as the whole screen twitching on the last
+            swipe. */}
+        <View
+          className="mt-5"
+          pointerEvents={isLast ? "none" : "auto"}
+          accessibilityElementsHidden={isLast}
+          importantForAccessibility={isLast ? "no-hide-descendants" : "auto"}
+          style={{ opacity: isLast ? 0 : 1 }}
+        >
+          <Primary
+            label={page === 0 ? "Get started" : page === 1 ? "Next" : "Continue"}
+            onPress={() => goTo(page + 1)}
+          />
+        </View>
       </View>
     </View>
   );
