@@ -13,7 +13,7 @@
       "package": "com.rogerantony.unhook",
       "versionCode": 6,
       "adaptiveIcon": {
-        "backgroundColor": "#131211",
+        "backgroundColor": "#2E9466",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
