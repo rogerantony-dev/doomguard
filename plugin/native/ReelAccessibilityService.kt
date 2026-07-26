@@ -141,7 +141,7 @@ class ReelAccessibilityService : AccessibilityService() {
             else coverTickerRunning = false
         }
     }
-    private val catCount = 4
+    private val catCount = 13
     private val coverLines = listOf(
         "Feed's closed.\nHere's a cat.",
         "No scrolling today.\nCat instead.",
@@ -314,12 +314,19 @@ class ReelAccessibilityService : AccessibilityService() {
      * polling; false once it's pulled (you left the reel / the app), which stops it.
      */
     private fun refreshPill(): Boolean {
-        if (isBlockingNow() || debug) return false
+        if (debug) return false
         if (!overlayShown) return false
         val root = rootInActiveWindow ?: return true // transient; keep checking
         val pkg = root.packageName?.toString()
         if (pkg != instagramPackage && pkg != youtubePackage) {
             stopReelTimer(); hideOverlay(); return false // left the app
+        }
+        if (isBlockingNow()) {
+            // Blocking now: on Instagram the cat cover is the feedback, so pull the
+            // scroll pill so it doesn't linger on top of the blocked feed. (YouTube
+            // shows its own "Blocked" pill via renderBlocked from the event path.)
+            if (pkg == instagramPackage) { stopReelTimer(); hideOverlay() }
+            return false
         }
         val onReel = if (pkg == youtubePackage) detectShortGuilt(root) != null else onReelSurface(root)
         if (onReel) return true
@@ -357,10 +364,13 @@ class ReelAccessibilityService : AccessibilityService() {
     private fun currentMode(): String = prefs.getString("mode", "guilt") ?: "guilt"
 
     // --- Auto-block at the daily limit ----------------------------------------
-    /** Guilt user is over the daily limit: reels are bounced, locked until reset. */
+    /** Extra minutes granted today via the "1 more minute" button (on the dashboard). */
+    private fun extraMinutes(): Int = prefs.getInt("extraMinutes", 0)
+
+    /** Guilt user is over the daily limit (plus any granted grace): reels are bounced. */
     private fun autoBlocking(): Boolean {
         if (currentMode() != "guilt") return false
-        return currentSeconds() >= limitMinutes() * 60
+        return currentSeconds() >= (limitMinutes() + extraMinutes()) * 60
     }
 
     /** Reels should be bounced right now: manual Block, or auto-block at the limit. */
@@ -938,6 +948,7 @@ class ReelAccessibilityService : AccessibilityService() {
                 .putInt("shortsCount", 0)
                 .putInt("seconds", 0)
                 .remove("nudgeFiredToday")
+                .remove("extraMinutes") // grace resets each day
             // Promote a queued limit raise now that its day has arrived.
             val pending = prefs.getInt("pendingLimit", 0)
             val pendingDate = prefs.getString("pendingLimitDate", null)
