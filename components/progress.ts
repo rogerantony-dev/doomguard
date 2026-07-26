@@ -3,18 +3,25 @@ import { toDayIndex } from "./history";
 
 export const LADDER = [120, 90, 60, 45, 30, 15] as const;
 
-const POINTS_TABLE: Record<number, number> = {
-  120: 10,
-  90: 15,
-  60: 20,
-  45: 30,
-  30: 50,
-  15: 100,
-};
+/** The most a single day can be worth, however little you scrolled. */
+export const MAX_POINTS_PER_DAY = 50;
 
-/** Points earned for one clean day at the given limit. Lower limit, more points. */
-export function pointsForLimit(limitMinutes: number): number {
-  return POINTS_TABLE[limitMinutes] ?? Math.round(1200 / limitMinutes);
+/**
+ * What one day earned: the share of your limit you did NOT spend, scaled to
+ * MAX_POINTS_PER_DAY. Nothing scrolled pays the full 50, half your limit pays
+ * 25, reaching the limit pays nothing.
+ *
+ * This is deliberately independent of which rung of the ladder you are on. The
+ * old table paid by limit alone (10/day at 120 minutes, 100/day at 15), so
+ * tightening the limit inflated the score even if behaviour never changed, and
+ * scrolling 29 of 30 minutes scored exactly the same as scrolling none.
+ */
+export function pointsForDay(day: UnhookDay, currentLimit: number): number {
+  const limit = day.limitMinutes ?? currentLimit;
+  if (limit <= 0) return 0;
+  const spent = day.seconds / (limit * 60);
+  const earned = Math.round(MAX_POINTS_PER_DAY * (1 - spent));
+  return Math.max(0, Math.min(MAX_POINTS_PER_DAY, earned));
 }
 
 /** The next tighter rung below `limitMinutes`, or null at/below the 15-min floor. */
@@ -29,14 +36,14 @@ export function isCleanDay(day: UnhookDay, currentLimit: number): boolean {
   return day.seconds <= limit * 60;
 }
 
-/** Lifetime points: sum over clean days of that day's rate. */
+/**
+ * Lifetime points: what every recorded day earned, added up. Over-limit days
+ * are not skipped, they simply earn nothing, so there is no cliff between a day
+ * just under the limit and one just over.
+ */
 export function lifetimePoints(history: UnhookDay[], currentLimit: number): number {
   let total = 0;
-  for (const d of history) {
-    if (isCleanDay(d, currentLimit)) {
-      total += pointsForLimit(d.limitMinutes ?? currentLimit);
-    }
-  }
+  for (const d of history) total += pointsForDay(d, currentLimit);
   return total;
 }
 
@@ -107,7 +114,13 @@ export function computeProgress(
   const { current: streak, best } = streaks(history, today, currentLimit);
   const points = lifetimePoints(history, currentLimit);
   const nextRung = nextRungBelow(currentLimit);
-  const unlockedCount = catThresholds.filter((t) => t <= points).length;
+
+  // Today's contribution shrinks in real time as you scroll, so the running
+  // total goes down as well as up. Unlocking has to be one-way: gate the
+  // gallery on the high-water mark, never on the live total, or a cat you
+  // already earned would re-lock mid-afternoon.
+  const unlockedAt = Math.max(points, seen.lastPointsCelebrated);
+  const unlockedCount = catThresholds.filter((t) => t <= unlockedAt).length;
 
   const pendingLevelDown =
     streak > 0 && streak % 7 === 0 && nextRung !== null && streak > seen.lastCelebratedStreakMilestone

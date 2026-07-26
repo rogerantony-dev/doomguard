@@ -1,22 +1,44 @@
-import { pointsForLimit, nextRungBelow, LADDER, isCleanDay, lifetimePoints, streaks, computeProgress } from "./progress";
+import { pointsForDay, MAX_POINTS_PER_DAY, nextRungBelow, LADDER, isCleanDay, lifetimePoints, streaks, computeProgress } from "./progress";
 import type { UnhookDay } from "../modules/unhooknative";
 
 const day = (date: string, seconds: number, limitMinutes?: number): UnhookDay => ({
   date, seconds, count: 0, shorts: 0, ...(limitMinutes !== undefined ? { limitMinutes } : {}),
 });
 
-describe("pointsForLimit", () => {
-  it("maps each ladder rung to its table value", () => {
-    expect(pointsForLimit(120)).toBe(10);
-    expect(pointsForLimit(90)).toBe(15);
-    expect(pointsForLimit(60)).toBe(20);
-    expect(pointsForLimit(45)).toBe(30);
-    expect(pointsForLimit(30)).toBe(50);
-    expect(pointsForLimit(15)).toBe(100);
+const mins = (m: number) => m * 60;
+
+describe("pointsForDay", () => {
+  it("pays the full daily maximum for a day with no short-form time", () => {
+    expect(pointsForDay(day("2026-07-01", 0, 30), 30)).toBe(MAX_POINTS_PER_DAY);
+    expect(MAX_POINTS_PER_DAY).toBe(50);
   });
-  it("falls back to round(1200/limit) off-table", () => {
-    expect(pointsForLimit(20)).toBe(60); // round(1200/20)
-    expect(pointsForLimit(240)).toBe(5); // round(1200/240)
+
+  it("scales with the share of the limit left unspent", () => {
+    expect(pointsForDay(day("2026-07-01", mins(8), 30), 30)).toBe(37);
+    expect(pointsForDay(day("2026-07-01", mins(15), 30), 30)).toBe(25);
+    expect(pointsForDay(day("2026-07-01", mins(27), 30), 30)).toBe(5);
+  });
+
+  it("pays nothing at the limit or beyond it", () => {
+    expect(pointsForDay(day("2026-07-01", mins(30), 30), 30)).toBe(0);
+    expect(pointsForDay(day("2026-07-01", mins(90), 30), 30)).toBe(0);
+  });
+
+  it("scores the same behaviour identically whichever limit you picked", () => {
+    // The old table paid 10/day at a 120-min limit and 100/day at 15. Now a
+    // clean day is a clean day: what varies is how much you actually scrolled.
+    expect(pointsForDay(day("2026-07-01", 0, 120), 120)).toBe(MAX_POINTS_PER_DAY);
+    expect(pointsForDay(day("2026-07-01", 0, 15), 15)).toBe(MAX_POINTS_PER_DAY);
+  });
+
+  it("uses the day's own recorded limit, falling back to the current one", () => {
+    expect(pointsForDay(day("2026-07-01", mins(30), 60), 30)).toBe(25);
+    expect(pointsForDay(day("2026-07-01", mins(15)), 30)).toBe(25);
+  });
+
+  it("never divides by a zero or negative limit", () => {
+    expect(pointsForDay(day("2026-07-01", mins(5), 0), 0)).toBe(0);
+    expect(pointsForDay(day("2026-07-01", mins(5), -10), 30)).toBe(0);
   });
 });
 
@@ -56,13 +78,20 @@ describe("isCleanDay", () => {
 });
 
 describe("lifetimePoints", () => {
-  it("sums points per clean day using each day's own limit", () => {
-    const h = [day("2026-07-01", 10 * 60, 60), day("2026-07-02", 10 * 60, 30)];
-    expect(lifetimePoints(h, 30)).toBe(20 + 50);
+  it("sums each day's earnings using that day's own limit", () => {
+    // 10 of 60 spent -> 42; 10 of 30 spent -> 33
+    const h = [day("2026-07-01", mins(10), 60), day("2026-07-02", mins(10), 30)];
+    expect(lifetimePoints(h, 30)).toBe(42 + 33);
   });
-  it("skips over-limit days", () => {
-    const h = [day("2026-07-01", 90 * 60, 60), day("2026-07-02", 5 * 60, 30)];
-    expect(lifetimePoints(h, 30)).toBe(50);
+
+  it("contributes nothing for over-limit days rather than skipping them", () => {
+    const h = [day("2026-07-01", mins(90), 60), day("2026-07-02", mins(0), 30)];
+    expect(lifetimePoints(h, 30)).toBe(MAX_POINTS_PER_DAY);
+  });
+
+  it("caps a perfect day at the daily maximum", () => {
+    const h = Array.from({ length: 4 }, (_, i) => day(`2026-07-0${i + 1}`, 0, 30));
+    expect(lifetimePoints(h, 30)).toBe(4 * MAX_POINTS_PER_DAY);
   });
 });
 
@@ -120,17 +149,28 @@ describe("computeProgress", () => {
   });
 
   it("reports newly crossed cat thresholds as pending unlocks (the free cat unlocks silently)", () => {
-    // 7 clean days at 15 min = 700 pts -> crosses 0,50,150,400. The free cat
-    // (threshold 0) is unlocked from install, so it never fires a celebration.
+    // 7 days spending 1 of 15 minutes = 47/day = 329 pts -> crosses 0,50,150.
+    // The free cat (threshold 0) is unlocked from install, so it never fires.
     const p = computeProgress(clean7(15, 1), 15, "2026-07-07", thresholds, noneSeen);
-    expect(p.points).toBe(700);
-    expect(p.unlockedCount).toBe(4);
-    expect(p.pendingCatUnlocks).toEqual([50, 150, 400]);
+    expect(p.points).toBe(329);
+    expect(p.unlockedCount).toBe(3);
+    expect(p.pendingCatUnlocks).toEqual([50, 150]);
   });
 
   it("only reports thresholds crossed since last celebrated points", () => {
-    const seen = { lastCelebratedStreakMilestone: 0, lastPointsCelebrated: 150 };
+    const seen = { lastCelebratedStreakMilestone: 0, lastPointsCelebrated: 50 };
     const p = computeProgress(clean7(15, 1), 15, "2026-07-07", thresholds, seen);
-    expect(p.pendingCatUnlocks).toEqual([400]);
+    expect(p.pendingCatUnlocks).toEqual([150]);
+  });
+
+  it("keeps cats unlocked when today's points fall back as the user scrolls", () => {
+    // Today's contribution shrinks in real time, so the running total can drop.
+    // A cat already earned and celebrated must not re-lock underneath the user.
+    const earned = { lastCelebratedStreakMilestone: 0, lastPointsCelebrated: 150 };
+    const slipped = [day("2026-07-07", mins(29), 30)]; // 1 of 30 min left -> 2 pts
+    const p = computeProgress(slipped, 30, "2026-07-07", thresholds, earned);
+    expect(p.points).toBe(2);
+    expect(p.unlockedCount).toBe(3); // 0, 50 and 150 stay unlocked
+    expect(p.pendingCatUnlocks).toEqual([]);
   });
 });
