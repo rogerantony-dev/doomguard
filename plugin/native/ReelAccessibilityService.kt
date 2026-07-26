@@ -141,7 +141,7 @@ class ReelAccessibilityService : AccessibilityService() {
             else coverTickerRunning = false
         }
     }
-    private val catCount = 4
+    private val catCount = 13
     private val coverLines = listOf(
         "Feed's closed.\nHere's a cat.",
         "No scrolling today.\nCat instead.",
