@@ -162,9 +162,28 @@ real personal usage.
 
 ---
 
+## Privacy policy URL
+
+Paste this into Play Console > App content > Privacy policy, and into the
+store listing:
+
+```
+https://rogerantony-dev.github.io/unhook/
+```
+
+Served by GitHub Pages from the `gh-pages` branch of this repo, which holds
+only `index.html` and `.nojekyll`. The internal design docs under `docs/` are
+deliberately not published as site pages.
+
+`docs/privacy-policy.md` is the source of record for the wording. The published
+page is a hand-maintained HTML copy of it, so **if the policy changes, update
+both** and bump the date in each.
+
+---
+
 ## Release checklist
 
-- [ ] Privacy policy hosted at a public URL (`docs/privacy-policy.md`)
+- [x] Privacy policy hosted at a public URL
 - [ ] Build a signed AAB: `eas build --platform android --profile production`
 - [ ] Upload to **internal testing** first, never straight to production
 - [ ] Install from the internal testing link and confirm the signed build runs
