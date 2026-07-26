@@ -153,14 +153,18 @@ class UnhooknativeModule : Module() {
     return SimpleDateFormat("yyyy-MM-dd", Locale.US).format(cal.time)
   }
 
+  /** Extra minutes granted today via the "1 more minute" grace on the limit card. */
+  private fun extraMinutes(context: Context): Int =
+    prefs(context).getInt("extraMinutes", 0)
+
   /**
-   * True when a guilt-mode user has crossed their daily limit — i.e. reels are
-   * being bounced right now. Guilt always blocks at the limit, locked until the
-   * next daily reset (no snooze).
+   * True when a guilt-mode user has crossed their daily limit (plus any granted
+   * grace) — i.e. reels are being bounced right now. Guilt always blocks at the
+   * limit, locked until the next daily reset (aside from up to 3 grace minutes).
    */
   private fun autoBlocked(context: Context): Boolean {
     if (currentMode(context) != "guilt") return false
-    return todaySeconds(context) >= limitMinutes(context) * 60
+    return todaySeconds(context) >= (limitMinutes(context) + extraMinutes(context)) * 60
   }
 
   private fun serviceId(context: Context): String {
