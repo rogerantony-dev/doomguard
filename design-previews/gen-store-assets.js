@@ -102,6 +102,46 @@ ${mark({ tile: DEEP, body: INK })}`,
   </div>
 </div>`,
   },
+  {
+    name: 'social-preview',
+    w: 1280,
+    h: 640,
+    /*
+     * GitHub's repo social preview: the card that appears when the repo link is
+     * shared. Upload it by hand under Settings > General > Social preview, since
+     * it is the only per-repo image GitHub offers (the avatar beside the repo
+     * name always belongs to the owner account and cannot be overridden).
+     *
+     * Centred rather than left-aligned like the Play banner, because Slack, X and
+     * Discord each crop the edges differently and shrink it a long way down.
+     */
+    html: `<style>
+  html,body { margin:0; padding:0; }
+  .wrap {
+    width:1280px; height:640px; background:${CANVAS};
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    font-family:${FONT}; box-sizing:border-box; padding:0 120px;
+  }
+  .tile { width:184px; height:184px; border-radius:42px; overflow:hidden; flex:none; }
+  .tile svg { width:184px; height:184px; }
+  h1 {
+    margin:44px 0 0; font-size:92px; line-height:1; font-weight:700;
+    letter-spacing:-2.6px; color:${BONE};
+  }
+  p { margin:24px 0 0; font-size:34px; line-height:1.3; color:${ASH}; text-align:center; }
+  .foot {
+    margin:38px 0 0; font-size:23px; letter-spacing:2.6px; text-transform:uppercase;
+    color:#5F5F59;
+  }
+  .accent { color:${DEEP}; }
+</style>
+<div class="wrap">
+  <div class="tile">${mark({ tile: DEEP, body: INK })}</div>
+  <h1>Unhook</h1>
+  <p>Your Reels and Shorts, <span class="accent">on the clock</span>. Time them, or wall them off.</p>
+  <div class="foot">Android &middot; Open source &middot; No network calls</div>
+</div>`,
+  },
 ];
 
 fs.mkdirSync(OUT, { recursive: true });
@@ -127,4 +167,5 @@ for (const t of TARGETS) {
   console.log(`${t.name}  ${t.w}x${t.h}  ->  ${path.relative(path.join(__dirname, '..'), outPath)}`);
 }
 
-console.log('\nUpload both in Play Console > Store listing > Graphics.');
+console.log('\nplay-icon-512 + feature-graphic  ->  Play Console > Store listing > Graphics');
+console.log('social-preview                  ->  GitHub > Settings > General > Social preview');
