@@ -28,6 +28,7 @@ import {
   markStreakCelebrated,
   setLimit,
   setMode,
+  setUnlockedCats,
   type UnhookMode,
   type UnhookStatus,
 } from "./modules/unhooknative";
@@ -168,6 +169,13 @@ export default function App() {
       }),
     [status, limit]
   );
+
+  // The accessibility service shows cats too (the nudge card, the block cover),
+  // and it must only ever show ones you've earned. The thresholds and the points
+  // maths live here, so mirror the count over whenever it changes.
+  useEffect(() => {
+    setUnlockedCats(progress.unlockedCount);
+  }, [progress.unlockedCount]);
 
   // Surface one pending moment when the app opens. A streak offer outranks cats.
   useMountEffect(() => {

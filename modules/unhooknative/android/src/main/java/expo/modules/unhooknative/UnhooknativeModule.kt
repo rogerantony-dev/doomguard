@@ -114,6 +114,15 @@ class UnhooknativeModule : Module() {
       val cur = p.getInt("lastPointsCelebrated", 0)
       if (points > cur) p.edit().putInt("lastPointsCelebrated", points).apply()
     }
+
+    // How many gallery cats are unlocked. The thresholds and the points maths
+    // live in JS, so JS owns this number and mirrors it here for the
+    // accessibility service, which shows cats on the nudge and the block cover
+    // and must never spoil a locked one. Never below 1: the first cat is free.
+    Function("setUnlockedCats") { count: Int ->
+      val context = appContext.reactContext?.applicationContext ?: return@Function
+      prefs(context).edit().putInt("unlockedCats", count.coerceAtLeast(1)).apply()
+    }
   }
 
   private fun defaultStatus(): Map<String, Any> = mapOf(

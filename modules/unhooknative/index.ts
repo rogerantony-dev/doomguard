@@ -54,6 +54,7 @@ type NativeModule = {
   consumeOpenCats(): boolean;
   markStreakCelebrated(milestone: number): void;
   markPointsCelebrated(points: number): void;
+  setUnlockedCats(count: number): void;
 };
 
 // Lazily resolved so JS never crashes if the native module isn't present
@@ -143,6 +144,20 @@ export function markPointsCelebrated(points: number): void {
   if (!nativeModule) return;
   try {
     nativeModule.markPointsCelebrated(points);
+  } catch {
+    // no-op if the native module isn't available
+  }
+}
+
+/**
+ * Tell the service how many gallery cats are unlocked, so the cats it shows on
+ * the nudge and the block cover are drawn only from the earned ones. JS owns the
+ * number (thresholds and points live in components/cats.ts + progress.ts).
+ */
+export function setUnlockedCats(count: number): void {
+  if (!nativeModule) return;
+  try {
+    nativeModule.setUnlockedCats(count);
   } catch {
     // no-op if the native module isn't available
   }

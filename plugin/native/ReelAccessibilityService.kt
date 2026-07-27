@@ -1240,9 +1240,9 @@ class ReelAccessibilityService : AccessibilityService() {
 
     /**
      * Show the full-feed block at [bounds] (the feed area, above the bottom nav). The
-     * cat + line rotate each time the block re-appears, then stay put while it's up. We
-     * only push a layout when first revealing or when the bounds actually change, so a
-     * steady block doesn't churn updateViewLayout every tick.
+     * cat (one of the unlocked ones) + line rotate each time the block re-appears, then
+     * stay put while it's up. We only push a layout when first revealing or when the
+     * bounds actually change, so a steady block doesn't churn updateViewLayout every tick.
      */
     private fun showBlockCover(bounds: Rect) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
@@ -1254,7 +1254,7 @@ class ReelAccessibilityService : AccessibilityService() {
         val fresh = !catCoverVisible
         if (fresh) {
             val idx = blockShowSeq++
-            val resId = catDrawableRes((idx % catCount) + 1)
+            val resId = unlockedCatRes(idx)
             if (resId != 0) catImageView?.setImageResource(resId)
             catTextView?.text = coverLines[idx % coverLines.size]
         }
@@ -1409,7 +1409,7 @@ class ReelAccessibilityService : AccessibilityService() {
             ).apply { bottomMargin = dp(12) })
         }
 
-        // Random cat photo.
+        // A cat photo from the ones the user has unlocked.
         val img = ImageView(this).apply {
             scaleType = ImageView.ScaleType.CENTER_CROP
             clipToOutline = true
@@ -1418,8 +1418,7 @@ class ReelAccessibilityService : AccessibilityService() {
                     outline.setRoundRect(0, 0, view.width, view.height, dp(13).toFloat())
                 }
             }
-            val n = (blockShowSeq++ % catCount) + 1
-            val resId = catDrawableRes(n)
+            val resId = unlockedCatRes(blockShowSeq++)
             if (resId != 0) setImageResource(resId)
         }
         card.addView(img, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(124)))
@@ -1847,6 +1846,20 @@ class ReelAccessibilityService : AccessibilityService() {
     /** Resolve a bundled cat drawable (`unhook_cat_1..N`) by index, 0 if missing. */
     private fun catDrawableRes(index: Int): Int =
         resources.getIdentifier("unhook_cat_$index", "drawable", packageName)
+
+    /**
+     * How many cats the user has actually earned. The gallery gates each cat behind
+     * a lifetime-points threshold, so the nudge and the block cover must only draw
+     * from that prefix — showing a locked cat gives away a reward not yet earned.
+     * JS owns the number and mirrors it into prefs (see setUnlockedCats); 1 is the
+     * floor because the first cat is free, so there is always something to show.
+     */
+    private fun unlockedCatCount(): Int =
+        prefs.getInt("unlockedCats", 1).coerceIn(1, catCount)
+
+    /** The [seq]-th cat in a rotation over the unlocked ones, 0 if the drawable is missing. */
+    private fun unlockedCatRes(seq: Int): Int =
+        catDrawableRes((seq.mod(unlockedCatCount())) + 1)
 
     private fun pillText(seconds: Int): String {
         val minutes = seconds / 60
