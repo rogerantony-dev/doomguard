@@ -57,3 +57,6 @@ design-previews/out-clarity/
 design-previews/out-icon/
 .superpowers/
 design-previews/out-store/
+
+# Play Console demo recording (regenerate from a device; too large for git)
+docs/store/*.mp4
