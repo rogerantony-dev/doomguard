@@ -1,6 +1,7 @@
 import React, { useMemo, useRef, useState } from "react";
 import {
   Animated,
+  Linking,
   Modal,
   PanResponder,
   Pressable,
@@ -19,6 +20,9 @@ import { buildView, type HistoryRange } from "./history";
 import { getHistory } from "../modules/unhooknative";
 
 type Metric = "time" | "count";
+
+/** Where the app's source lives, linked from the History footer. */
+const REPO_URL = "https://github.com/rogerantony-dev/unhook";
 
 // Monochrome series colours — reels read as the primary tone, shorts a step back.
 const REELS = C.bone;
@@ -226,15 +230,43 @@ export function HistoryScreen({
               </>
             )}
 
-            <Text className="mt-4 border-t border-bone/10 pt-5 text-[12.5px] leading-5 text-dim">
-              History starts the day you updated the app. Earlier days weren't recorded. It fills
-              in one day at a time and lives only on this device.
-            </Text>
+            <View className="mt-4 gap-4 border-t border-bone/10 pt-5">
+              <Text className="text-[12.5px] leading-5 text-dim">
+                History starts the day you updated the app. Earlier days weren't recorded. It
+                fills in one day at a time and lives only on this device.
+              </Text>
+              <SourceLink />
+            </View>
           </View>
         </ScrollView>
       </SafeAreaView>
       </Animated.View>
     </Modal>
+  );
+}
+
+/**
+ * Quiet way out to the repo. It sits under the footer note rather than on the
+ * home screen: the claim that everything stays on your device is right above it,
+ * so this is where someone who wants to check that lands.
+ */
+function SourceLink() {
+  return (
+    <Pressable
+      onPress={() => {
+        // Nothing to recover if no browser handles the link, so fail silently.
+        Linking.openURL(REPO_URL).catch(() => {});
+      }}
+      hitSlop={10}
+      className="self-start active:opacity-60"
+    >
+      <Text className="text-[12.5px] font-medium text-ash">Open source</Text>
+      <View className="mt-1 flex-row items-center gap-1.5">
+        <Ionicons name="logo-github" size={13} color={C.dim} />
+        <Text className="text-[12.5px] text-dim">github.com/rogerantony-dev/unhook</Text>
+        <Ionicons name="open-outline" size={11} color={C.dim} />
+      </View>
+    </Pressable>
   );
 }
 
