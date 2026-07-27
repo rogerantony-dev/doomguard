@@ -1,17 +1,25 @@
-# Unhook
+<p align="center">
+  <img src="docs/logo.png" width="112" alt="Unhook app icon: a black cat on a green rounded square">
+</p>
 
-**A screen-time app for the only part of your phone that actually eats hours: Instagram Reels and YouTube Shorts.**
+<h1 align="center">Unhook</h1>
 
-It times how long you spend in those two feeds, shows the number *while you are in them*, and blocks the feeds once you pass a daily limit you set. Android only. No account, and nothing leaves your device.
+<p align="center">
+  <b>A screen-time app for the only part of your phone that actually eats hours:<br>Instagram Reels and YouTube Shorts.</b>
+</p>
 
-[![Latest release](https://img.shields.io/github/v/release/rogerantony-dev/unhook?label=download%20apk)](https://github.com/rogerantony-dev/unhook/releases/latest)
-[![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+<p align="center">
+  <a href="https://github.com/rogerantony-dev/unhook/releases/latest"><img src="https://img.shields.io/github/v/release/rogerantony-dev/unhook?label=download%20apk" alt="Latest release"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="License: MIT"></a>
+</p>
 
-<p>
+<p align="center">
   <img src="docs/screenshots/guilt-counting.png" width="255" alt="Home screen showing 0 minutes wasted today and 15 minutes left on the clock">
   <img src="docs/screenshots/guilt-limit-reached.png" width="255" alt="Home screen after the limit is reached, reading walled off till midnight">
   <img src="docs/screenshots/block-cover-feed.png" width="255" alt="Instagram feed blanked out and replaced with a cat photo">
 </p>
+
+It times how long you spend in those two feeds, shows the number *while you are in them*, and blocks the feeds once you pass a daily limit you set. Android only. No account, and nothing leaves your device.
 
 ## What it is
 
