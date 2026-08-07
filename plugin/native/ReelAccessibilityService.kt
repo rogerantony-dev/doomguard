@@ -93,9 +93,13 @@ class ReelAccessibilityService : AccessibilityService() {
     //
     // Touches are consumed (no FLAG_NOT_TOUCHABLE) which both blocks scrolling and
     // sidesteps Android's 0.8 opacity cap on pass-through overlays; we still stack a
-    // few identical layers so it's reliably opaque either way. The layers are built
-    // ONCE and kept attached for the service's life; showing/hiding just toggles their
-    // window alpha (0 ↔ visible) — no addView/removeView churn, no orphaned windows.
+    // few identical layers so it's reliably opaque either way. Within an Instagram
+    // session, showing/hiding just toggles window alpha + touchability — no
+    // addView/removeView churn. But the windows MUST be fully removed the moment we
+    // are not in a tracked app: UPI/banking apps (Paytm etc.) run tapjacking checks
+    // and refuse payments while ANY foreign window overlays them, even a fully
+    // transparent one. removeCatCover() is therefore called on every leave-app /
+    // screen-off / block-mode-off path, and the layers rebuild lazily on next show.
     private val catLayers = mutableListOf<View>()
     private var catImageView: ImageView? = null
     private var catTextView: TextView? = null
@@ -136,7 +140,9 @@ class ReelAccessibilityService : AccessibilityService() {
     private val coverTickMs = 180L
     private val coverTicker = object : Runnable {
         override fun run() {
-            if (!isScreenOn()) { coverTickerRunning = false; return }
+            // Screen off → really remove the windows: no event will fire outside
+            // IG/YT (package-filtered service) to clean them up after unlock.
+            if (!isScreenOn()) { coverTickerRunning = false; removeCatCover(); return }
             if (refreshCover()) mainHandler.postDelayed(this, coverTickMs)
             else coverTickerRunning = false
         }
@@ -228,7 +234,7 @@ class ReelAccessibilityService : AccessibilityService() {
             stopReelTimer()
             stopCoverTicker()
             hideOverlay()
-            hideCatCover()
+            removeCatCover()
             hideNudgeModal()
             reelCounter.lastKey = null
             shortCounter.lastKey = null
@@ -444,10 +450,10 @@ class ReelAccessibilityService : AccessibilityService() {
      * any heavy tree work unless we're actually on the feed and about to draw the block.
      */
     private fun refreshCover(): Boolean {
-        if (!isBlockingNow()) { hideCatCover(); return false }
+        if (!isBlockingNow()) { removeCatCover(); return false }
         if (nudgeModalShown) return true // hold the cover while the limit alert is up
         val root = rootInActiveWindow ?: return true // transient; keep polling
-        if (root.packageName?.toString() != instagramPackage) { hideCatCover(); return false }
+        if (root.packageName?.toString() != instagramPackage) { removeCatCover(); return false }
 
         val win = Rect().also { root.getBoundsInScreen(it) }
 
@@ -1267,6 +1273,7 @@ class ReelAccessibilityService : AccessibilityService() {
                 lp.width = bounds.width()
                 lp.height = bounds.height()
                 lp.alpha = 1f
+                lp.flags = lp.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE.inv()
                 runCatching { windowManager?.updateViewLayout(layer, lp) }
             }
         }
@@ -1357,11 +1364,19 @@ class ReelAccessibilityService : AccessibilityService() {
         for (layer in catLayers) {
             val lp = layer.layoutParams as WindowManager.LayoutParams
             lp.alpha = 0f
+            // Invisible must also mean intangible: alpha is visual-only, and a
+            // hidden-but-touchable layer would keep eating taps inside its old bounds.
+            lp.flags = lp.flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
             runCatching { windowManager?.updateViewLayout(layer, lp) }
         }
     }
 
-    /** Real teardown of the cover windows — only on service unbind. */
+    /**
+     * Real teardown of the cover + tray windows. Called whenever we are no longer
+     * actively covering inside Instagram (leave-app, screen-off, block-mode-off,
+     * unbind): payment apps refuse to run while any foreign overlay window exists,
+     * so nothing may stay attached outside a tracked app. Layers rebuild lazily.
+     */
     private fun removeCatCover() {
         for (layer in catLayers) runCatching { windowManager?.removeView(layer) }
         catLayers.clear()
