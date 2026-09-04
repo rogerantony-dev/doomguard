@@ -21,6 +21,7 @@ import android.os.Handler
 import android.os.Looper
 import android.os.PowerManager
 import android.provider.Settings
+import android.util.Log
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.MotionEvent
@@ -51,6 +52,11 @@ import org.json.JSONObject
  * player) and [coversScreen] (the full-screen bounds thresholds).
  */
 class ReelAccessibilityService : AccessibilityService() {
+
+    private companion object {
+        /** Sparse logcat tag: window switches, payment pauses, filter changes. */
+        const val TAG = "Unhook"
+    }
 
     private val instagramPackage = "com.instagram.android"
     private val youtubePackage = "com.google.android.youtube"
@@ -222,26 +228,158 @@ class ReelAccessibilityService : AccessibilityService() {
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         // Heartbeat so the app can confirm the service is actually running.
         prefs.edit().putLong("lastConnectedAt", System.currentTimeMillis()).apply()
+        // Being connected means any payment pause is over (the user, or the
+        // auto-resume alarm, turned us back on).
+        PaymentPause.clearPaused(this)
+        setTrackedEvents(false)
+    }
+
+    // The config XML deliberately has no android:packageNames filter: to notice a
+    // payment app coming to the front we must hear window-state changes from EVERY
+    // package. Everything else (content-changed, scrolled) is only wanted inside
+    // Instagram/YouTube, and a playing reel floods those, so the subscribed event
+    // set is switched at runtime: window-state only while idle, the full set while
+    // in a tracked app.
+    // Null until first applied: the XML declares the full set, so the first
+    // narrowing must not be skipped as a no-op.
+    private var trackedEventsOn: Boolean? = null
+
+    private fun setTrackedEvents(on: Boolean) {
+        if (on == trackedEventsOn) return
+        trackedEventsOn = on
+        val info = serviceInfo ?: return
+        val switchEvents = AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED or
+            AccessibilityEvent.TYPE_WINDOWS_CHANGED
+        info.eventTypes = if (on) {
+            switchEvents or
+                AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED or
+                AccessibilityEvent.TYPE_VIEW_SCROLLED
+        } else {
+            switchEvents
+        }
+        info.packageNames = null
+        runCatching { serviceInfo = info }
+            .onFailure { Log.w(TAG, "setServiceInfo failed", it) }
+        Log.d(TAG, "tracked events ${if (on) "on" else "off"}")
+    }
+
+    /** What the focused window resolves to; [hiddenTitle] is set when its content is withheld from us. */
+    private class ActiveWindow(val pkg: String?, val hiddenTitle: String?)
+
+    /**
+     * The window that currently holds focus. rootInActiveWindow can be null
+     * mid-transition, or hidden on purpose, so fall back to the windows list.
+     */
+    private fun activeWindow(): ActiveWindow {
+        rootInActiveWindow?.packageName?.let { return ActiveWindow(it.toString(), null) }
+        val win = runCatching { windows }.getOrNull()
+            ?.let { list -> list.firstOrNull { it.isActive } ?: list.firstOrNull { it.isFocused } }
+            ?: return ActiveWindow(null, null)
+        win.root?.packageName?.let { return ActiveWindow(it.toString(), null) }
+        // The root is hidden from us: Android 14 lets an app mark its content
+        // accessibilityDataSensitive, which banking apps do, and the system then
+        // shows a non-accessibility-tool service no nodes at all. The window
+        // title is still reported and is the app's label.
+        val title = win.title?.toString()?.trim()?.takeIf { it.isNotEmpty() }
+        val isApp = win.type == android.view.accessibility.AccessibilityWindowInfo.TYPE_APPLICATION
+        Log.d(TAG, "active window root hidden; type=${win.type} title='$title'")
+        return ActiveWindow(PaymentPause.packageForTitle(title), if (isApp) title else null)
+    }
+
+    /**
+     * Decide what a window switch means. The active window can be unresolvable
+     * for a few hundred ms while the system finishes the switch, so an
+     * undecidable switch is looked at again shortly rather than judged from the
+     * event alone. A hidden app window pauses only once [confirmed] by that
+     * second look, so a transient blank during a switch never trips it.
+     */
+    private fun handleWindowSwitch(
+        eventPkg: String?,
+        source: String,
+        retriesLeft: Int,
+        confirmed: Boolean = false,
+    ) {
+        val active = activeWindow()
+        val activePkg = active.pkg
+        Log.d(TAG, "$source: event=$eventPkg active=$activePkg hidden=${active.hiddenTitle}")
+        if (activePkg == instagramPackage || activePkg == youtubePackage) return
+        val paymentPkg = when {
+            PaymentPause.isPaymentApp(activePkg) -> activePkg
+            PaymentPause.isPaymentApp(eventPkg) -> eventPkg
+            else -> null
+        }
+        if (paymentPkg != null) { pauseForPaymentApp(paymentPkg); return }
+        if (activePkg == null) {
+            val hidden = active.hiddenTitle
+            if (hidden != null && confirmed) {
+                pauseForPaymentApp(PaymentPause.HIDDEN_WINDOW, label = hidden)
+                return
+            }
+            if (retriesLeft > 0) {
+                mainHandler.removeCallbacks(settleCheck)
+                settleRetries = retriesLeft - 1
+                mainHandler.postDelayed(settleCheck, settleDelayMs)
+                return
+            }
+        }
+        // Left a tracked app: tear the pill + cat cover down immediately and reset.
+        onLeftTrackedApp()
+    }
+
+    private val settleDelayMs = 600L
+    private var settleRetries = 0
+    private val settleCheck = Runnable { handleWindowSwitch(null, "settle", settleRetries, confirmed = true) }
+
+    /** Tear down every overlay and reset per-app state: we are no longer in IG/YT. */
+    private fun onLeftTrackedApp() {
+        mainHandler.removeCallbacks(hideRunnable)
+        stopReelTimer()
+        stopCoverTicker()
+        hideOverlay()
+        removeCatCover()
+        hideNudgeModal()
+        reelCounter.lastKey = null
+        shortCounter.lastKey = null
+        setTrackedEvents(false)
+        // Likely heading back to the home screen — make the widget current.
+        updateWidget(force = true)
+    }
+
+    /**
+     * A payment app is up, or an app that hides its screen from accessibility
+     * services. Paytm and friends refuse to proceed while this service is ENABLED (not merely while an overlay exists; see [PaymentPause]), so the
+     * only fix is to switch ourselves off. disableSelf() is one-way: the service
+     * stays off until re-enabled from Settings or, with WRITE_SECURE_SETTINGS
+     * granted over adb, by the app itself. onUnbind() follows and clears overlays.
+     */
+    private fun pauseForPaymentApp(pkg: String, label: String = PaymentPause.label(pkg)) {
+        Log.i(TAG, "payment app $pkg ($label) in front; disabling self")
+        onLeftTrackedApp()
+        PaymentPause.markPaused(this, pkg, label)
+        runCatching { disableSelf() }
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         event ?: return
         val pkg = event.packageName?.toString()
         if (pkg != instagramPackage && pkg != youtubePackage) {
-            // Left a tracked app — tear the pill + cat cover down immediately and reset.
-            // (Never throttled — leaving must be instant.)
-            mainHandler.removeCallbacks(hideRunnable)
-            stopReelTimer()
-            stopCoverTicker()
-            hideOverlay()
-            removeCatCover()
-            hideNudgeModal()
-            reelCounter.lastKey = null
-            shortCounter.lastKey = null
-            // Likely heading back to the home screen — make the widget current.
-            updateWidget(force = true)
+            // Only a window switch can mean we left a tracked app; anything else
+            // from a foreign package (keyboard content, system UI) is noise. Two
+            // events signal a switch: an app's own window-state change, and the
+            // system's windows-changed notice (package null), which is the one
+            // that reliably fires when an app is merely resumed from Recents.
+            val type = event.eventType
+            if (type != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED &&
+                type != AccessibilityEvent.TYPE_WINDOWS_CHANGED
+            ) return
+            // The keyboard or a system dialog opening over Instagram also reports a
+            // foreign package. Trust the active window, not the event's sender.
+            // (Never throttled: leaving must be instant.)
+            handleWindowSwitch(pkg, AccessibilityEvent.eventTypeToString(type), retriesLeft = 2)
             return
         }
+        mainHandler.removeCallbacks(settleCheck)
+        setTrackedEvents(true)
 
         // A playing reel floods content-changed events; cap the expensive node scan
         // to ~5Hz. The self-pollers (cover/pill) still catch anything between events.

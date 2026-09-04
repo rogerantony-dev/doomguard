@@ -43,11 +43,14 @@ know when a Reel or a Short is playing.
 You have to turn this on yourself in Android Settings, and you can turn it off at
 any time in the same place.
 
-**What it can see.** The service is restricted, in its own configuration, to two
-apps: Instagram (`com.instagram.android`) and YouTube
-(`com.google.android.youtube`). Android does not deliver it any information about
-any other app on your phone. Within those two apps, it looks for the on-screen
-signs of a Reels or Shorts player.
+**What it can see.** Screen content is read in two apps only: Instagram
+(`com.instagram.android`) and YouTube (`com.google.android.youtube`). Within
+those two apps, it looks for the on-screen signs of a Reels or Shorts player.
+
+Outside those two apps the service asks Android for one thing: a notice when a
+different app comes to the front, carrying that app's package name or window
+title. It uses this solely to recognise a payment app and switch itself off (see
+below). It does not read, and is not sent, the contents of any other app's screen.
 
 **What it does with what it sees.** It increments a timer. Screen contents are
 examined in the moment and discarded. Unhook does not record, store, log,
@@ -56,6 +59,14 @@ posts, your account details, or your passwords.
 
 **What it can do.** When you reach your limit, the service navigates away from
 the feed. This is why it is permitted to perform gestures.
+
+**Payment apps.** Some UPI and banking apps (Paytm, for example) refuse to make a
+payment while any third-party accessibility service is enabled on the phone. So
+when one of a fixed list of such apps opens, or any app that hides its screen
+from accessibility services, the service turns itself off and Unhook posts a
+notification saying so. Nothing is counted until you turn the service back on,
+which the app links you to. The list of apps is built into Unhook; no list of
+the apps on your phone is collected or sent anywhere.
 
 ## Other permissions
 

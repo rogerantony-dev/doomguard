@@ -29,7 +29,7 @@ const ACCESSIBILITY_DESCRIPTION =
 /**
  * Wires up the native Reel-counter:
  *  1. Declares SYSTEM_ALERT_WINDOW + the AccessibilityService in the manifest,
- *     plus the home-screen widget receiver.
+ *     plus the home-screen widget receiver and the payment-pause resume receiver.
  *  2. Copies the Kotlin sources, the accessibility config XML, and the widget
  *     resources (layout/drawable/xml) into the generated Android project during
  *     prebuild.
@@ -77,6 +77,22 @@ function withReelCounterManifest(config) {
       permissions.push({
         $: { "android:name": "android.permission.SYSTEM_ALERT_WINDOW" },
       });
+    }
+    // POST_NOTIFICATIONS: the "paused for <payment app>" reminder on Android 13+.
+    // WRITE_SECURE_SETTINGS: never granted by the system to a normal install,
+    // only over adb (`pm grant`). When present, the app can re-enable its own
+    // accessibility service after a payment pause instead of sending the user
+    // to Settings. Declaring it is harmless without the grant.
+    // SCHEDULE_EXACT_ALARM: lets the resume alarm fire on time under Battery
+    // Saver; off by default, granted in Settings (Alarms and reminders) or adb.
+    for (const name of [
+      "android.permission.POST_NOTIFICATIONS",
+      "android.permission.WRITE_SECURE_SETTINGS",
+      "android.permission.SCHEDULE_EXACT_ALARM",
+    ]) {
+      if (!permissions.some((p) => p.$["android:name"] === name)) {
+        permissions.push({ $: { "android:name": name } });
+      }
     }
     manifest.manifest["uses-permission"] = permissions;
 
@@ -150,6 +166,20 @@ function withReelCounterManifest(config) {
             },
           },
         ],
+      });
+    }
+
+    // Alarm target that re-enables the service after a payment pause (only
+    // acts when WRITE_SECURE_SETTINGS has been granted over adb).
+    const resumeDeclared = application.receiver.some(
+      (r) => r.$["android:name"] === ".PaymentResumeReceiver"
+    );
+    if (!resumeDeclared) {
+      application.receiver.push({
+        $: {
+          "android:name": ".PaymentResumeReceiver",
+          "android:exported": "false",
+        },
       });
     }
 

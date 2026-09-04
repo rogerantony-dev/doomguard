@@ -10,9 +10,19 @@
   isAccessibilityTool is false because this is not an assistive tool for users
   with disabilities; it uses the API to recognise a Reels/Shorts player.
   Declaring that honestly is what the policy asks for.
+
+  There is deliberately no android:packageNames filter. The service has to hear
+  window-state changes from every app so it can switch itself off the moment a
+  payment app (Paytm etc.) comes to the front; those apps block payments while
+  any third-party accessibility service is enabled. Outside Instagram/YouTube
+  the service narrows its event set at runtime to window-state and windows
+  changes only (see ReelAccessibilityService.setTrackedEvents), so nothing else
+  is read. typeWindowsChanged is the system's own notice that the active window
+  changed; an app resumed from Recents does not always emit a window-state
+  event of its own.
 -->
 <accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
-    android:accessibilityEventTypes="typeWindowStateChanged|typeWindowContentChanged|typeViewScrolled"
+    android:accessibilityEventTypes="typeWindowStateChanged|typeWindowsChanged|typeWindowContentChanged|typeViewScrolled"
     android:accessibilityFeedbackType="feedbackGeneric"
     android:accessibilityFlags="flagDefault|flagRetrieveInteractiveWindows|flagReportViewIds"
     android:canRetrieveWindowContent="true"
@@ -20,5 +30,4 @@
     android:isAccessibilityTool="false"
     android:summary="@string/unhook_accessibility_summary"
     android:description="@string/unhook_accessibility_description"
-    android:notificationTimeout="100"
-    android:packageNames="com.instagram.android,com.google.android.youtube" />
+    android:notificationTimeout="100" />

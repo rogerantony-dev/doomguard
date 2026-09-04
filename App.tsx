@@ -3,6 +3,7 @@ import {
   AppState,
   BackHandler,
   Modal,
+  PermissionsAndroid,
   Platform,
   Pressable,
   ScrollView,
@@ -18,14 +19,17 @@ import Animated, { SlideInDown } from "react-native-reanimated";
 import { CatGallery } from "./components/CatGallery";
 import { HistoryScreen } from "./components/HistoryScreen";
 import { OnboardingFlow } from "./components/Onboarding";
+import { PaymentPauseScreen } from "./components/PaymentPause";
 import { Brand, C, Kicker } from "./components/console";
 import {
   consumeOpenCats,
+  dismissPaymentPause,
   getHistory,
   getStatus,
   grantExtraMinute,
   markPointsCelebrated,
   markStreakCelebrated,
+  resumeAfterPayment,
   setLimit,
   setMode,
   setUnlockedCats,
@@ -117,6 +121,12 @@ export default function App() {
       const ready = next?.overlay === true && next?.accessibilityRunning === true;
       if (ready || (attempts += 1) >= 8) {
         pollRef.current = null;
+        // Android 13+ needs this before the "paused for <payment app>" reminder
+        // can show. Asked once setup is complete, when the reason is easy to
+        // see; a no-op once answered.
+        if (ready && Platform.OS === "android") {
+          PermissionsAndroid.request("android.permission.POST_NOTIFICATIONS").catch(() => {});
+        }
         return;
       }
       pollRef.current = setTimeout(tick, 500);
@@ -150,6 +160,20 @@ export default function App() {
   const overlayDone = status?.overlay === true;
   const accessibilityDone = status?.accessibilityRunning === true;
   const allReady = overlayDone && accessibilityDone;
+  // The service switched itself off for a payment app; offer the way back on
+  // instead of dropping the user into first-run setup.
+  const paymentPauseApp = !accessibilityDone ? status?.paymentPauseApp ?? null : null;
+
+  const resumeFromPause = useCallback(() => {
+    // Direct re-enable (adb-granted secure settings) reflects in status within a
+    // beat; the Settings route reflects on the next app resume via syncStatus.
+    if (resumeAfterPayment()) syncStatus();
+  }, [syncStatus]);
+
+  const dismissPause = useCallback(() => {
+    dismissPaymentPause();
+    refresh();
+  }, [refresh]);
   const mode: UnhookMode = status?.mode ?? "guilt";
   const seconds = status?.todaySeconds ?? 0;
   const count = status?.todayCount ?? 0;
@@ -274,6 +298,13 @@ export default function App() {
               />
             </View>
           </ScrollView>
+        ) : paymentPauseApp ? (
+          <PaymentPauseScreen
+            app={paymentPauseApp}
+            canAutoResume={status?.canAutoResume === true}
+            onResume={resumeFromPause}
+            onDismiss={dismissPause}
+          />
         ) : (
           <OnboardingFlow
             overlayDone={overlayDone}

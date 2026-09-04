@@ -29,6 +29,14 @@ export type UnhookStatus = {
   lastCelebratedStreakMilestone: number;
   /** Lifetime points value at which cat-unlock reveals were last shown. */
   lastPointsCelebrated: number;
+  /**
+   * Label of the payment app the service switched itself off for (Paytm etc.
+   * refuse to pay while a third-party accessibility service is enabled), or
+   * null. Only set while the service is actually off.
+   */
+  paymentPauseApp: string | null;
+  /** WRITE_SECURE_SETTINGS was granted over adb, so the app can re-enable itself. */
+  canAutoResume: boolean;
 };
 
 export type UnhookDay = {
@@ -55,6 +63,8 @@ type NativeModule = {
   markStreakCelebrated(milestone: number): void;
   markPointsCelebrated(points: number): void;
   setUnlockedCats(count: number): void;
+  resumeAfterPayment(): boolean;
+  dismissPaymentPause(): void;
 };
 
 // Lazily resolved so JS never crashes if the native module isn't present
@@ -158,6 +168,30 @@ export function setUnlockedCats(count: number): void {
   if (!nativeModule) return;
   try {
     nativeModule.setUnlockedCats(count);
+  } catch {
+    // no-op if the native module isn't available
+  }
+}
+
+/**
+ * Turn the service back on after a payment pause. Returns true when it was
+ * re-enabled directly (adb-granted WRITE_SECURE_SETTINGS); otherwise Settings >
+ * Accessibility opens on Unhook's entry and the user flips the switch.
+ */
+export function resumeAfterPayment(): boolean {
+  if (!nativeModule) return false;
+  try {
+    return nativeModule.resumeAfterPayment();
+  } catch {
+    return false;
+  }
+}
+
+/** Forget the payment pause without re-enabling; the app shows plain setup instead. */
+export function dismissPaymentPause(): void {
+  if (!nativeModule) return;
+  try {
+    nativeModule.dismissPaymentPause();
   } catch {
     // no-op if the native module isn't available
   }
