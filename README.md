@@ -162,6 +162,14 @@ To add a cat: append to `CATS` in `components/cats.ts`, drop the image in `asset
 ### Gotchas
 
 - **`adb shell am force-stop` kills the accessibility service**, and Android leaves it switched off. The app then drops back to onboarding until you re-enable it in Settings. Use `adb shell input keyevent KEYCODE_HOME` instead when you just want the app backgrounded.
+- **Payment apps switch the service off.** Paytm and similar UPI/banking apps refuse to pay while any third-party accessibility service is enabled, and it is the enabled state they check, not overlays. So when one of the apps listed in `plugin/native/PaymentPause.kt` comes to the front, or any app that hides its screen from accessibility services (Android 14's accessibilityDataSensitive, which is what banking apps do), the service calls `disableSelf()`, posts a notification, and the app shows a resume screen that deep-links to the Settings entry. Android gives an app no way to re-enable its own service, unless you grant it secure-settings access over adb, after which Unhook turns itself back on from the resume screen and about four minutes after each pause:
+
+  ```bash
+  adb shell pm grant com.rogerantony.unhook android.permission.WRITE_SECURE_SETTINGS
+  adb shell appops set com.rogerantony.unhook SCHEDULE_EXACT_ALARM allow
+  ```
+
+  The second line is optional. Without it the resume alarm is inexact, and Battery Saver stretches it (an inexact 4-minute alarm fired after 11 on a Galaxy A54).
 - **Raising the daily limit does nothing today.** It is deferred to the next daily reset on purpose. Lowering it is instant.
 - **`expo prebuild` rewrites `android/gradle.properties`**, so pin the ABI with the `-P` flag on the Gradle command rather than editing that file.
 - The daily counters roll over at local midnight, when the service next sees a new date.

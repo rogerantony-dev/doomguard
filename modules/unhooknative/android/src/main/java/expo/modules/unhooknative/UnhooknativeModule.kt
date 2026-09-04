@@ -41,7 +41,32 @@ class UnhooknativeModule : Module() {
         "graceLeft" to (MAX_EXTRA_MINUTES - extraMinutes(context)).coerceAtLeast(0),
         "lastCelebratedStreakMilestone" to prefs(context).getInt("lastCelebratedStreakMilestone", 0),
         "lastPointsCelebrated" to prefs(context).getInt("lastPointsCelebrated", 0),
+        "paymentPauseApp" to paymentPauseApp(context),
+        "canAutoResume" to canWriteSecureSettings(context),
       )
+    }
+
+    // After a payment pause: turn the service back on directly when the phone
+    // has granted WRITE_SECURE_SETTINGS over adb (returns true), otherwise open
+    // Settings > Accessibility on Unhook's entry and return false.
+    Function("resumeAfterPayment") {
+      val context = appContext.reactContext?.applicationContext ?: return@Function false
+      if (enableService(context)) return@Function true
+      openServiceSettings(context)
+      false
+    }
+
+    // Drop the "paused for payments" record without turning the service on, so
+    // the app falls back to plain setup instead of nagging about the pause.
+    Function("dismissPaymentPause") {
+      val context = appContext.reactContext?.applicationContext
+      if (context != null) {
+        prefs(context).edit()
+          .remove("paymentPausePackage")
+          .remove("paymentPauseLabel")
+          .remove("paymentPausedAt")
+          .apply()
+      }
     }
 
     Function("setMode") { mode: String ->
@@ -125,7 +150,7 @@ class UnhooknativeModule : Module() {
     }
   }
 
-  private fun defaultStatus(): Map<String, Any> = mapOf(
+  private fun defaultStatus(): Map<String, Any?> = mapOf(
     "overlay" to false,
     "accessibilityEnabled" to false,
     "accessibilityRunning" to false,
@@ -139,6 +164,8 @@ class UnhooknativeModule : Module() {
     "graceLeft" to 3,
     "lastCelebratedStreakMilestone" to 0,
     "lastPointsCelebrated" to 0,
+    "paymentPauseApp" to null,
+    "canAutoResume" to false,
   )
 
   private fun prefs(context: Context) =
@@ -196,6 +223,55 @@ class UnhooknativeModule : Module() {
   private fun serviceId(context: Context): String {
     val pkg = context.packageName
     return "$pkg/$pkg.ReelAccessibilityService"
+  }
+
+  /**
+   * The payment app the service switched itself off for, or null. Set by the
+   * service right before disableSelf(); cleared when it reconnects. Only
+   * meaningful while the service is off, so a stale record from a pause the
+   * user resolved by hand is ignored.
+   */
+  private fun paymentPauseApp(context: Context): String? {
+    if (isAccessibilityEnabled(context)) return null
+    return prefs(context).getString("paymentPauseLabel", null)
+  }
+
+  private fun canWriteSecureSettings(context: Context): Boolean =
+    context.checkSelfPermission(android.Manifest.permission.WRITE_SECURE_SETTINGS) ==
+      android.content.pm.PackageManager.PERMISSION_GRANTED
+
+  /** Append the service to the enabled list. Needs WRITE_SECURE_SETTINGS (adb only). */
+  private fun enableService(context: Context): Boolean {
+    if (!canWriteSecureSettings(context)) return false
+    val id = serviceId(context)
+    val resolver = context.contentResolver
+    return runCatching {
+      val current = Settings.Secure.getString(
+        resolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+      ).orEmpty()
+      val entries = current.split(':').filter { it.isNotBlank() }
+      if (entries.none { it.equals(id, ignoreCase = true) }) {
+        Settings.Secure.putString(
+          resolver,
+          Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES,
+          (entries + id).joinToString(":"),
+        )
+      }
+      Settings.Secure.putInt(resolver, Settings.Secure.ACCESSIBILITY_ENABLED, 1)
+      true
+    }.getOrDefault(false)
+  }
+
+  /** Settings > Accessibility, scrolled to Unhook where the skin supports it. */
+  private fun openServiceSettings(context: Context) {
+    val id = serviceId(context)
+    val args = android.os.Bundle().apply { putString(":settings:fragment_args_key", id) }
+    val intent = android.content.Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).apply {
+      addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+      putExtra(":settings:fragment_args_key", id)
+      putExtra(":settings:show_fragment_args", args)
+    }
+    runCatching { context.startActivity(intent) }
   }
 
   private fun isAccessibilityEnabled(context: Context): Boolean {
