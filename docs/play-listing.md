@@ -53,45 +53,22 @@ screen explaining both permissions before either is requested. Its wording:
 YouTube, nothing else, and your data stays on this device." The service also
 carries an `android:description` shown in Android's own accessibility settings.
 
-**Video demo:** Play usually asks for a link to a short screen recording showing
-the feature in use. The existing recording, `docs/store/unhook-demo.mp4` (70s,
-1080x2340), predates the rename and shows the Unhook branding and the old cat;
-re-record it as Wilt before submitting, then upload it unlisted to YouTube and
+**Video demo:** Play asks for a link to a short video showing the prominent
+disclosure and the feature in use. Recorded 6 September 2026 as
+`docs/store/wilt-demo.mp4` (72 s, 1080x2340). Upload it unlisted to YouTube and
 paste the link into the declaration.
 
-What it shows, in order: the dashboard with today's time and the budget left, then
-Instagram Reels with the floating timer counting while the feed is scrolled, then
-Block mode being switched on, then the same feed walled off behind the cat cover
-with the Reels tab refusing to open, then the confirmation gate on leaving Block
-mode.
+What it shows, in order: the onboarding tour, the permissions page with the
+disclosure ("This is how Wilt sees Reels and floats the timer. It only reads
+Instagram and YouTube, nothing else, and your data stays on this device"),
+tapping through to Android's Accessibility settings, Installed apps, the Wilt
+Reel Counter page with the system-shown description, the switch and the "Allow
+Wilt Reel Counter to have full control" dialog, back to the dashboard, then
+Instagram Reels with the floating timer counting.
 
-What it does not show: enabling the accessibility service in Android Settings. If
-the reviewer asks for that specifically, record a second clip of the onboarding
-permission screen and the Settings toggle. Note that force-stopping the app turns
-the service off, which is a quick way to get back to the onboarding state.
+Re-record it whenever the onboarding copy or the service description changes.
 
 ---
-
-## Other permissions a reviewer may ask about
-
-None of these has a Play Console declaration form today, but the answers should
-be ready.
-
-- **SYSTEM_ALERT_WINDOW.** Draws the floating timer and the block cover over
-  Instagram and YouTube. Requested in onboarding with an explanation.
-- **POST_NOTIFICATIONS.** One notification only: "Wilt paused for <payment app>",
-  posted when the service switches itself off for a UPI or banking app, so the
-  user knows to turn it back on. Requested after setup completes.
-- **SCHEDULE_EXACT_ALARM.** Used for a single alarm that re-enables the
-  accessibility service four minutes after a payment pause. Only functional when
-  the user has also granted secure-settings access over adb, which normal users
-  never do; without that grant the alarm is scheduled inexactly. Not requested
-  from the user in the app.
-- **WRITE_SECURE_SETTINGS.** Declared so a developer can grant it over adb, which
-  lets the app re-enable its own accessibility service after a payment pause.
-  The system never grants it to a normal install, and the app never asks for it.
-- **INTERNET.** Added by the Expo/React Native runtime. The app makes no
-  network requests; there is no analytics, crash reporting, or update channel.
 
 ## Data Safety form
 
@@ -248,12 +225,12 @@ both** and bump the date in each.
 - [x] Phone screenshots captured and converted to 9:16 (recaptured as Wilt on
       6 September 2026; the nudge shot is missing and `docs/screenshots/`
       still has three Unhook-era images: limit reached, the widget, the pill)
-- [ ] Demo video re-recorded as Wilt (the existing one is Unhook-branded)
+- [x] Demo video re-recorded as Wilt, showing the disclosure and the Settings toggle
 - [x] EAS project relinked under the `wilt` slug (`@rogerantony/wilt`)
 - [ ] Complete **Android developer verification**, or publishing is blocked
 - [ ] Build a signed AAB: `eas build --platform android --profile production --non-interactive`
       (first build started 6 September 2026; signing uses the local upload key, see below)
-- [ ] Upload the demo video to YouTube as unlisted, keep the link
+- [ ] Upload `docs/store/wilt-demo.mp4` to YouTube as unlisted, keep the link
 - [ ] Complete Data Safety, content rating, target audience
 - [ ] Submit the Accessibility API Permissions Declaration with the video link
 - [ ] Run **closed testing**: 12+ testers opted in for 14 continuous days
