@@ -5,13 +5,11 @@ import type { ImageSourcePropType } from "react-native";
  * lifetime-points threshold. Frequent early, sparse later; the first cat is
  * free so the gallery is never empty. Bundled locally (assets/cats) so the
  * gallery never depends on a live URL. Add a cat by appending { src, unlockAt }
- * and dropping its image in assets/cats plus plugin/native/res/drawable (for the
- * nudge/widget — bump catCount in ReelAccessibilityService.kt to match).
+ * and dropping its image in assets/cats.
  *
- * The list order IS the unlock order, and the native side indexes into it by
- * position (`wilt_cat_1..N` must line up with cat_1..N here), so keep the two
- * in the same order. App.tsx mirrors the unlocked count into prefs so the nudge
- * and the block cover only ever show cats already earned.
+ * The list order IS the unlock order. The nudge card and the block cover show
+ * the drawn cat rather than these photos; App.tsx still mirrors the unlocked
+ * count into prefs for the native side.
  */
 export type Cat = { src: ImageSourcePropType; unlockAt: number };
 
