@@ -141,7 +141,7 @@ function cat(t, opts = {}) {
     ${earL}${earR}
     <circle cx="128" cy="128" r="80" fill="${fur}"/>
     ${patch}${cracks}${spotSvg}
-    ${eye(102, 128, xLeft, 0, lerp(2, 0, cloud))}${eye(154, 128, xRight, cloud, lerp(2, 0, cloud))}
+    <g class="eyes">${eye(102, 128, xLeft, 0, lerp(2, 0, cloud))}${eye(154, 128, xRight, cloud, lerp(2, 0, cloud))}</g>
     ${blush}${whiskers}${nose}${mouth}${tear}${extras}
   </svg>`;
 }
