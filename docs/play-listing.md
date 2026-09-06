@@ -158,7 +158,8 @@ makes that time visible, then helps you stop.
 WATCH THE CLOCK RUN DOWN
 Wilt counts the minutes you spend on Instagram Reels and YouTube Shorts. A
 floating timer sits on top of the feed while you scroll, so the cost is never
-hidden. It reddens as you approach your limit.
+hidden. On your home screen a cat keeps the time, and it wilts as the minutes
+climb: fresh in the morning, a skull once you are past your limit.
 
 TWO WAYS TO USE IT
 Guilt mode times your scrolling and blocks the feeds once you hit a daily limit
