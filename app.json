@@ -29,7 +29,16 @@
     },
     "plugins": [
       "expo-dev-client",
-      "./plugin/withReelCounter"
+      "./plugin/withReelCounter",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#2E9466"
+        }
+      ]
     ],
     "owner": "rogerantony",
     "extra": {
