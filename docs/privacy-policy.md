@@ -1,6 +1,6 @@
 # Privacy Policy for Wilt
 
-**Last updated: 26 July 2026**
+**Last updated: 6 September 2026**
 
 Wilt is a screen-time app for Android. It counts the time you spend on
 Instagram Reels and YouTube Shorts, shows that time back to you, and can block
@@ -75,6 +75,11 @@ the apps on your phone is collected or sent anywhere.
 - **Internet and network state.** These appear in the app's permission list
   because standard Android app frameworks declare them. Wilt itself makes no
   network requests.
+- **Notifications.** One notification only: that Wilt has paused itself for a
+  payment app, so you know to turn it back on. Nothing else is ever posted.
+- **Alarms and reminders.** Used for a single timer that turns the service back
+  on a few minutes after a payment pause, and only on a phone where you have
+  granted Wilt that ability with developer tools. Wilt never asks you for it.
 - **Vibrate.** Declared by the app framework.
 
 ## Children

@@ -2,16 +2,21 @@ import { Pressable, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { C } from "./console";
 
-/** Slim positive-reinforcement strip: current streak + lifetime points. */
+/**
+ * Slim positive-reinforcement strip: current streak + banked points, with
+ * today's not-yet-banked points alongside so the number never seems to shrink.
+ */
 export function ProgressStrip({
   streak,
   best,
   points,
+  pendingPoints,
   onPress,
 }: {
   streak: number;
   best: number;
   points: number;
+  pendingPoints: number;
   onPress?: () => void;
 }) {
   return (
@@ -29,6 +34,7 @@ export function ProgressStrip({
       </View>
       <Text className="text-[14px] font-medium text-ash">
         <Text className="font-semibold text-bone">{points.toLocaleString()}</Text> pts
+        {pendingPoints > 0 ? <Text className="text-dim">  +{pendingPoints} today</Text> : null}
       </Text>
     </Pressable>
   );
