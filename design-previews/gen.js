@@ -1,5 +1,5 @@
 /*
- * Preview harness: renders each Unhook screen as a fixed-size phone mockup so
+ * Preview harness: renders each Wilt screen as a fixed-size phone mockup so
  * the redesign can be screenshotted headlessly (no device needed). HTML/CSS here
  * mirrors the intended React Native styling 1:1 (NativeWind = Tailwind tokens),
  * so what you see is what the app will look like.
@@ -246,7 +246,7 @@ screens.guilt = `
     </div>
   </div>
 
-  <div class="foot">Unhook only reads Instagram &amp; YouTube's screen, <b>nothing else</b>, and your count lives only on this device.</div>
+  <div class="foot">Wilt only reads Instagram &amp; YouTube's screen, <b>nothing else</b>, and your count lives only on this device.</div>
 </div>`;
 
 screens.block = `
@@ -296,11 +296,11 @@ screens.onboarding = `
 
   <div class="step" style="margin-top:14px">
     <div class="top"><span class="badge">2</span><h3>Enable the accessibility service</h3></div>
-    <p>Find "Unhook Reel Counter" in the list and turn it on. This is how the app knows when you're watching Reels.</p>
+    <p>Find "Wilt Reel Counter" in the list and turn it on. This is how the app knows when you're watching Reels.</p>
     <div class="act go">Open accessibility settings</div>
   </div>
 
-  <div class="foot">Unhook only reads Instagram &amp; YouTube's screen, <b>nothing else</b>, and your count lives only on this device.</div>
+  <div class="foot">Wilt only reads Instagram &amp; YouTube's screen, <b>nothing else</b>, and your count lives only on this device.</div>
 </div>`;
 
 screens.modal = `

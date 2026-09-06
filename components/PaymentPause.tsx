@@ -40,13 +40,13 @@ export function PaymentPauseScreen({
           {`Paused for\n${app}.`}
         </Text>
         <Text className="mt-4 text-[15px] leading-relaxed text-ash" style={{ maxWidth: 320 }}>
-          {app} does not run while Unhook is on, so Unhook switched itself off
+          {app} does not run while Wilt is on, so Wilt switched itself off
           when {app} opened. Nothing was counted since.
         </Text>
         <Text className="mt-3 text-[15px] leading-relaxed text-ash" style={{ maxWidth: 320 }}>
           {canAutoResume
             ? "Tap below to turn it back on. It also comes back on its own about four minutes after the pause."
-            : "To turn it back on, open Accessibility settings, go to Installed apps (Downloaded apps on some phones), pick Unhook Reel Counter, and switch it on."}
+            : "To turn it back on, open Accessibility settings, go to Installed apps (Downloaded apps on some phones), pick Wilt Reel Counter, and switch it on."}
         </Text>
       </View>
       <Pressable
@@ -54,7 +54,7 @@ export function PaymentPauseScreen({
         className="items-center rounded-2xl bg-bone py-4 active:opacity-80"
       >
         <Text className="text-[16px] font-semibold text-ink">
-          {canAutoResume ? "Turn Unhook back on" : "Open accessibility settings"}
+          {canAutoResume ? "Turn Wilt back on" : "Open accessibility settings"}
         </Text>
       </Pressable>
       <Pressable onPress={onDismiss} hitSlop={12} className="mt-4 items-center active:opacity-60">

@@ -7,12 +7,12 @@
   on the right rots (fresh -> skull) with how close you are; see CatDecay.kt.
 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/unhook_widget_root"
+    android:id="@+id/wilt_widget_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="horizontal"
     android:gravity="center_vertical"
-    android:background="@drawable/unhook_widget_bg"
+    android:background="@drawable/wilt_widget_bg"
     android:padding="20dp">
 
     <LinearLayout
@@ -25,7 +25,7 @@
             android:id="@+id/widget_brand"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="UNHOOK"
+            android:text="WILT"
             android:textColor="#9A9A92"
             android:textSize="11sp"
             android:textStyle="bold"
@@ -100,6 +100,6 @@
         android:layout_height="76dp"
         android:layout_marginStart="12dp"
         android:scaleType="fitCenter"
-        android:src="@drawable/unhook_catface_1"
+        android:src="@drawable/wilt_catface_1"
         android:contentDescription="Cat, decaying with time spent" />
 </LinearLayout>

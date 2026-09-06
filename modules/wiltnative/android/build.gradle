@@ -3,11 +3,11 @@ plugins {
   id 'expo-module-gradle-plugin'
 }
 
-group = 'expo.modules.unhooknative'
+group = 'expo.modules.wiltnative'
 version = '0.1.0'
 
 android {
-  namespace "expo.modules.unhooknative"
+  namespace "expo.modules.wiltnative"
   defaultConfig {
     versionCode 1
     versionName "0.1.0"

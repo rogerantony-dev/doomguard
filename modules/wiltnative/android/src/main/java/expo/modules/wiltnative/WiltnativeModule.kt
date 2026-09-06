@@ -1,4 +1,4 @@
-package expo.modules.unhooknative
+package expo.modules.wiltnative
 
 import android.content.Context
 import android.provider.Settings
@@ -17,11 +17,11 @@ import java.util.Locale
  * actually working. Reads the same SharedPreferences the accessibility service
  * writes (same app process), and Android's settings for permission state.
  */
-class UnhooknativeModule : Module() {
+class WiltnativeModule : Module() {
   private val MAX_EXTRA_MINUTES = 3
 
   override fun definition() = ModuleDefinition {
-    Name("Unhook")
+    Name("Wilt")
 
     Function("getStatus") {
       val context = appContext.reactContext?.applicationContext
@@ -48,7 +48,7 @@ class UnhooknativeModule : Module() {
 
     // After a payment pause: turn the service back on directly when the phone
     // has granted WRITE_SECURE_SETTINGS over adb (returns true), otherwise open
-    // Settings > Accessibility on Unhook's entry and return false.
+    // Settings > Accessibility on Wilt's entry and return false.
     Function("resumeAfterPayment") {
       val context = appContext.reactContext?.applicationContext ?: return@Function false
       if (enableService(context)) return@Function true
@@ -169,7 +169,7 @@ class UnhooknativeModule : Module() {
   )
 
   private fun prefs(context: Context) =
-    context.getSharedPreferences("unhook_reels", Context.MODE_PRIVATE)
+    context.getSharedPreferences("wilt_reels", Context.MODE_PRIVATE)
 
   private fun currentMode(context: Context): String =
     prefs(context).getString("mode", "guilt") ?: "guilt"
@@ -262,7 +262,7 @@ class UnhooknativeModule : Module() {
     }.getOrDefault(false)
   }
 
-  /** Settings > Accessibility, scrolled to Unhook where the skin supports it. */
+  /** Settings > Accessibility, scrolled to Wilt where the skin supports it. */
   private fun openServiceSettings(context: Context) {
     val id = serviceId(context)
     val args = android.os.Bundle().apply { putString(":settings:fragment_args_key", id) }
@@ -291,23 +291,23 @@ class UnhooknativeModule : Module() {
   /** Enabled AND the service has actually connected at least once. */
   private fun isAccessibilityRunning(context: Context): Boolean {
     if (!isAccessibilityEnabled(context)) return false
-    val prefs = context.getSharedPreferences("unhook_reels", Context.MODE_PRIVATE)
+    val prefs = context.getSharedPreferences("wilt_reels", Context.MODE_PRIVATE)
     return prefs.getLong("lastConnectedAt", 0L) > 0L
   }
 
   private fun todayCount(context: Context): Int {
-    val prefs = context.getSharedPreferences("unhook_reels", Context.MODE_PRIVATE)
+    val prefs = context.getSharedPreferences("wilt_reels", Context.MODE_PRIVATE)
     return prefs.getInt("count", 0)
   }
 
   private fun todayShorts(context: Context): Int {
-    val prefs = context.getSharedPreferences("unhook_reels", Context.MODE_PRIVATE)
+    val prefs = context.getSharedPreferences("wilt_reels", Context.MODE_PRIVATE)
     return prefs.getInt("shortsCount", 0)
   }
 
   /** Seconds spent on short-form players (reels + shorts) today; drives the timer. */
   private fun todaySeconds(context: Context): Int {
-    val prefs = context.getSharedPreferences("unhook_reels", Context.MODE_PRIVATE)
+    val prefs = context.getSharedPreferences("wilt_reels", Context.MODE_PRIVATE)
     return prefs.getInt("seconds", 0)
   }
 

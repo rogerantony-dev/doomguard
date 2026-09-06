@@ -1,4 +1,4 @@
-import type { UnhookDay } from "../modules/unhooknative";
+import type { WiltDay } from "../modules/wiltnative";
 import { toDayIndex } from "./history";
 
 export const LADDER = [120, 90, 60, 45, 30, 15] as const;
@@ -16,7 +16,7 @@ export const MAX_POINTS_PER_DAY = 50;
  * tightening the limit inflated the score even if behaviour never changed, and
  * scrolling 29 of 30 minutes scored exactly the same as scrolling none.
  */
-export function pointsForDay(day: UnhookDay, currentLimit: number): number {
+export function pointsForDay(day: WiltDay, currentLimit: number): number {
   const limit = day.limitMinutes ?? currentLimit;
   if (limit <= 0) return 0;
   const spent = day.seconds / (limit * 60);
@@ -31,7 +31,7 @@ export function nextRungBelow(limitMinutes: number): number | null {
 }
 
 /** A day is clean when its short-form seconds are at or under that day's limit. */
-export function isCleanDay(day: UnhookDay, currentLimit: number): boolean {
+export function isCleanDay(day: WiltDay, currentLimit: number): boolean {
   const limit = day.limitMinutes ?? currentLimit;
   return day.seconds <= limit * 60;
 }
@@ -41,7 +41,7 @@ export function isCleanDay(day: UnhookDay, currentLimit: number): boolean {
  * are not skipped, they simply earn nothing, so there is no cliff between a day
  * just under the limit and one just over.
  */
-export function lifetimePoints(history: UnhookDay[], currentLimit: number): number {
+export function lifetimePoints(history: WiltDay[], currentLimit: number): number {
   let total = 0;
   for (const d of history) total += pointsForDay(d, currentLimit);
   return total;
@@ -54,7 +54,7 @@ export function lifetimePoints(history: UnhookDay[], currentLimit: number): numb
  * run (the day isn't over yet) so we count back from the latest recorded day.
  */
 export function streaks(
-  history: UnhookDay[],
+  history: WiltDay[],
   today: string,
   currentLimit: number
 ): { current: number; best: number } {
@@ -105,7 +105,7 @@ export type Progress = {
  * limit + which moments have already been shown (so celebrations never re-fire).
  */
 export function computeProgress(
-  history: UnhookDay[],
+  history: WiltDay[],
   currentLimit: number,
   today: string,
   catThresholds: number[],

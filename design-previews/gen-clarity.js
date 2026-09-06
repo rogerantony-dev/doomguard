@@ -1,6 +1,6 @@
 /*
  * "Clarity" redesign preview — a calm, premium, editorial LIGHT direction for
- * Unhook (counterpoint to the shipped dark "Hazard Console" theme).
+ * Wilt (counterpoint to the shipped dark "Hazard Console" theme).
  *
  * Emits fixed-size phone mockups so the whole app can be screenshotted headlessly:
  *   node design-previews/gen-clarity.js
@@ -277,7 +277,7 @@ function modeSwitch(active, hint) {
 const stopwatchIcon = (c) => `<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="1.9"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2M9 2h6M12 5V2"/></svg>`;
 const shieldIcon = (c) => `<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="1.9"><path d="M12 3l7 3v5c0 4.4-3 7.4-7 8-4-.6-7-3.6-7-8V6z"/><path d="M9 12l2 2 4-4"/></svg>`;
 const catsBtn = `<div class="btn cats"><img class="av" src="${CAT}"/>Cats, not reels</div>`;
-const footPrivacy = `<div class="foot">Unhook only reads Instagram &amp; YouTube's screen, <b>nothing else</b>, and your count lives only on this device.</div>`;
+const footPrivacy = `<div class="foot">Wilt only reads Instagram &amp; YouTube's screen, <b>nothing else</b>, and your count lives only on this device.</div>`;
 
 // --- Screens ----------------------------------------------------------------
 const screens = {};
@@ -356,7 +356,7 @@ screens.block = `
     <div class="btn outline">${barIcon()}View history</div>
   </div>
 
-  <div style="margin-top:20px">${modeSwitch("block", "Block (pro). Unhook backs you out of every reel and short.")}</div>
+  <div style="margin-top:20px">${modeSwitch("block", "Block (pro). Wilt backs you out of every reel and short.")}</div>
   ${footPrivacy}
 </div>`;
 
@@ -379,7 +379,7 @@ screens.onboarding = `
     </div>
     <div class="step">
       <div class="top"><span class="badge">2</span><h3>Enable the accessibility service</h3></div>
-      <p>Find “Unhook Reel Counter” in the list and turn it on. This is how the app knows when you're watching Reels.</p>
+      <p>Find “Wilt Reel Counter” in the list and turn it on. This is how the app knows when you're watching Reels.</p>
       <div class="act">Open accessibility settings</div>
     </div>
   </div>

@@ -1,4 +1,4 @@
-package com.rogerantony.unhook
+package com.rogerantony.wilt
 
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
@@ -55,7 +55,7 @@ class ReelAccessibilityService : AccessibilityService() {
 
     private companion object {
         /** Sparse logcat tag: window switches, payment pauses, filter changes. */
-        const val TAG = "Unhook"
+        const val TAG = "Wilt"
     }
 
     private val instagramPackage = "com.instagram.android"
@@ -214,7 +214,7 @@ class ReelAccessibilityService : AccessibilityService() {
 
 
     private val prefs by lazy {
-        getSharedPreferences("unhook_reels", Context.MODE_PRIVATE)
+        getSharedPreferences("wilt_reels", Context.MODE_PRIVATE)
     }
 
     // Hide hysteresis: a single mis-detected event shouldn't blink the pill out.
@@ -1258,7 +1258,7 @@ class ReelAccessibilityService : AccessibilityService() {
         val now = System.currentTimeMillis()
         if (!force && now - lastWidgetUpdateAt < 10_000L) return
         lastWidgetUpdateAt = now
-        runCatching { UnhookWidgetProvider.updateAll(this) }
+        runCatching { WiltWidgetProvider.updateAll(this) }
     }
 
     // --- Time-on-reels ticker --------------------------------------------------
@@ -1672,7 +1672,7 @@ class ReelAccessibilityService : AccessibilityService() {
         nudgeModalShown = false
     }
 
-    /** Bring Unhook to the front and ask it to open the cat gallery. */
+    /** Bring Wilt to the front and ask it to open the cat gallery. */
     private fun launchCatGallery() {
         prefs.edit().putBoolean("openCats", true).apply()
         val intent = packageManager.getLaunchIntentForPackage(packageName)?.apply {
@@ -1729,7 +1729,7 @@ class ReelAccessibilityService : AccessibilityService() {
         ))
 
         card.addView(TextView(this).apply {
-            text = "You've spent ${fmtDurationLong(currentSeconds())} on reels today. Unhook's blocking them until midnight."
+            text = "You've spent ${fmtDurationLong(currentSeconds())} on reels today. Wilt's blocking them until midnight."
             setTextColor(Color.parseColor("#9A9A92"))
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 14.5f)
             setLineSpacing(dp(3).toFloat(), 1f)
@@ -1985,9 +1985,9 @@ class ReelAccessibilityService : AccessibilityService() {
         return if (node.isScrollable) node else null
     }
 
-    /** Resolve a bundled cat drawable (`unhook_cat_1..N`) by index, 0 if missing. */
+    /** Resolve a bundled cat drawable (`wilt_cat_1..N`) by index, 0 if missing. */
     private fun catDrawableRes(index: Int): Int =
-        resources.getIdentifier("unhook_cat_$index", "drawable", packageName)
+        resources.getIdentifier("wilt_cat_$index", "drawable", packageName)
 
     /**
      * How many cats the user has actually earned. The gallery gates each cat behind

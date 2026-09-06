@@ -1,15 +1,15 @@
 <p align="center">
-  <img src="docs/logo.png" width="112" alt="Unhook app icon: a black cat on a green rounded square">
+  <img src="docs/logo.png" width="112" alt="Wilt app icon: a black cat on a green rounded square">
 </p>
 
-<h1 align="center">Unhook</h1>
+<h1 align="center">Wilt</h1>
 
 <p align="center">
   <b>A screen-time app for the only part of your phone that actually eats hours:<br>Instagram Reels and YouTube Shorts.</b>
 </p>
 
 <p align="center">
-  <a href="https://github.com/rogerantony-dev/unhook/releases/latest"><img src="https://img.shields.io/github/v/release/rogerantony-dev/unhook?label=download%20apk" alt="Latest release"></a>
+  <a href="https://github.com/rogerantony-dev/wilt/releases/latest"><img src="https://img.shields.io/github/v/release/rogerantony-dev/wilt?label=download%20apk" alt="Latest release"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="License: MIT"></a>
 </p>
 
@@ -25,7 +25,7 @@ It times how long you spend in those two feeds, shows the number *while you are 
 
 Your phone's built-in screen-time report tells you what you did yesterday. That is too late to act on, and it measures the wrong thing: "3 hours on Instagram" cannot tell the difference between messaging a friend and thumbing through Reels at 1am.
 
-Unhook measures only the short-form feeds. It keeps a live timer on screen while you scroll, interrupts you when you are spiraling, and takes the feeds away entirely once you have spent your daily allowance. Days you stay under the limit earn points, and points unlock cat pictures, so there is something on the other side of stopping.
+Wilt measures only the short-form feeds. It keeps a live timer on screen while you scroll, interrupts you when you are spiraling, and takes the feeds away entirely once you have spent your daily allowance. Days you stay under the limit earn points, and points unlock cat pictures, so there is something on the other side of stopping.
 
 ## Two modes
 
@@ -84,7 +84,7 @@ So it needs two permissions, both explained before either is requested:
 
 ## Install
 
-Download the APK from [the latest release](https://github.com/rogerantony-dev/unhook/releases/latest).
+Download the APK from [the latest release](https://github.com/rogerantony-dev/wilt/releases/latest).
 
 **arm64 only**, which covers any phone from roughly 2017 onward. Older 32-bit devices will refuse to install it. Release APKs are signed with a development key rather than a Play Store key, so if you later move to a Play build you will need to uninstall first.
 
@@ -106,8 +106,8 @@ A physical device matters. The whole app keys off two real packages and needs an
 ### Get it running
 
 ```bash
-git clone https://github.com/rogerantony-dev/unhook.git
-cd unhook
+git clone https://github.com/rogerantony-dev/wilt.git
+cd wilt
 npm install
 npx expo prebuild --platform android    # generates android/ from app.json + plugin/
 npx expo run:android                    # debug build, installs, starts Metro
@@ -117,8 +117,8 @@ npx expo run:android                    # debug build, installs, starts Metro
 
 Then enable both permissions on the device, which the app's onboarding walks you through:
 
-1. **Draw over other apps** → allow for Unhook.
-2. **Settings → Accessibility → Unhook Reel Counter** → on.
+1. **Draw over other apps** → allow for Wilt.
+2. **Settings → Accessibility → Wilt Reel Counter** → on.
 
 Open Instagram Reels and the pill should appear within a second or two.
 
@@ -150,23 +150,23 @@ Jest covers the pure logic, which is deliberately kept free of React and native 
 | Path | What it is |
 |---|---|
 | `plugin/native/ReelAccessibilityService.kt` | Detection, timing, blocking, the pill, the cover, the nudges |
-| `plugin/native/UnhookWidgetProvider.kt` | The home-screen widget |
+| `plugin/native/WiltWidgetProvider.kt` | The home-screen widget |
 | `plugin/native/res/` | Widget layouts, cat drawables |
 | `plugin/withReelCounter.js` | Config plugin that copies all of the above into `android/` at prebuild, and patches the manifest |
-| `modules/unhooknative/` | Expo module exposing the service's state to JS |
+| `modules/wiltnative/` | Expo module exposing the service's state to JS |
 
 Edit those, re-run `npx expo prebuild --platform android`, rebuild.
 
-To add a cat: append to `CATS` in `components/cats.ts`, drop the image in `assets/cats/`, drop a copy in `plugin/native/res/drawable/` as `unhook_cat_<n>.png`, and bump `catCount` in the service. The list order is the unlock order, and the native side indexes by position, so the two must stay aligned.
+To add a cat: append to `CATS` in `components/cats.ts`, drop the image in `assets/cats/`, drop a copy in `plugin/native/res/drawable/` as `wilt_cat_<n>.png`, and bump `catCount` in the service. The list order is the unlock order, and the native side indexes by position, so the two must stay aligned.
 
 ### Gotchas
 
 - **`adb shell am force-stop` kills the accessibility service**, and Android leaves it switched off. The app then drops back to onboarding until you re-enable it in Settings. Use `adb shell input keyevent KEYCODE_HOME` instead when you just want the app backgrounded.
-- **Payment apps switch the service off.** Paytm and similar UPI/banking apps refuse to pay while any third-party accessibility service is enabled, and it is the enabled state they check, not overlays. So when one of the apps listed in `plugin/native/PaymentPause.kt` comes to the front, or any app that hides its screen from accessibility services (Android 14's accessibilityDataSensitive, which is what banking apps do), the service calls `disableSelf()`, posts a notification, and the app shows a resume screen that deep-links to the Settings entry. Android gives an app no way to re-enable its own service, unless you grant it secure-settings access over adb, after which Unhook turns itself back on from the resume screen and about four minutes after each pause:
+- **Payment apps switch the service off.** Paytm and similar UPI/banking apps refuse to pay while any third-party accessibility service is enabled, and it is the enabled state they check, not overlays. So when one of the apps listed in `plugin/native/PaymentPause.kt` comes to the front, or any app that hides its screen from accessibility services (Android 14's accessibilityDataSensitive, which is what banking apps do), the service calls `disableSelf()`, posts a notification, and the app shows a resume screen that deep-links to the Settings entry. Android gives an app no way to re-enable its own service, unless you grant it secure-settings access over adb, after which Wilt turns itself back on from the resume screen and about four minutes after each pause:
 
   ```bash
-  adb shell pm grant com.rogerantony.unhook android.permission.WRITE_SECURE_SETTINGS
-  adb shell appops set com.rogerantony.unhook SCHEDULE_EXACT_ALARM allow
+  adb shell pm grant com.rogerantony.wilt android.permission.WRITE_SECURE_SETTINGS
+  adb shell appops set com.rogerantony.wilt SCHEDULE_EXACT_ALARM allow
   ```
 
   The second line is optional. Without it the resume alarm is inexact, and Battery Saver stretches it (an inexact 4-minute alarm fired after 11 on a Galaxy A54).

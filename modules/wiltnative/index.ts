@@ -1,8 +1,8 @@
 import { requireNativeModule } from "expo";
 
-export type UnhookMode = "guilt" | "block";
+export type WiltMode = "guilt" | "block";
 
-export type UnhookStatus = {
+export type WiltStatus = {
   /** "Draw over other apps" permission granted. */
   overlay: boolean;
   /** Accessibility service toggled on in system settings. */
@@ -16,7 +16,7 @@ export type UnhookStatus = {
   /** Seconds spent on short-form players (reels + shorts) today. */
   todaySeconds: number;
   /** Current behavior: "guilt" counts reels, "block" bounces you out. */
-  mode: UnhookMode;
+  mode: WiltMode;
   /** Daily limit in effect today, in minutes. When crossed, surfaces turn red. */
   limitMinutes: number;
   /** A limit raise queued for the next daily reset, in minutes (0 if none). */
@@ -39,7 +39,7 @@ export type UnhookStatus = {
   canAutoResume: boolean;
 };
 
-export type UnhookDay = {
+export type WiltDay = {
   /** Local calendar day, "yyyy-mm-dd". */
   date: string;
   /** Seconds on short-form players (reels + shorts) that day. */
@@ -53,12 +53,12 @@ export type UnhookDay = {
 };
 
 type NativeModule = {
-  getStatus(): UnhookStatus;
-  setMode(mode: UnhookMode): void;
+  getStatus(): WiltStatus;
+  setMode(mode: WiltMode): void;
   setLimit(minutes: number): void;
   setLimitNow(minutes: number): void;
   grantExtraMinute(): void;
-  getHistory(): UnhookDay[];
+  getHistory(): WiltDay[];
   consumeOpenCats(): boolean;
   markStreakCelebrated(milestone: number): void;
   markPointsCelebrated(points: number): void;
@@ -71,12 +71,12 @@ type NativeModule = {
 // (e.g. running in a context without the dev build).
 let nativeModule: NativeModule | null = null;
 try {
-  nativeModule = requireNativeModule<NativeModule>("Unhook");
+  nativeModule = requireNativeModule<NativeModule>("Wilt");
 } catch {
   nativeModule = null;
 }
 
-export function getStatus(): UnhookStatus | null {
+export function getStatus(): WiltStatus | null {
   if (!nativeModule) return null;
   try {
     return nativeModule.getStatus();
@@ -85,7 +85,7 @@ export function getStatus(): UnhookStatus | null {
   }
 }
 
-export function setMode(mode: UnhookMode): void {
+export function setMode(mode: WiltMode): void {
   if (!nativeModule) return;
   try {
     nativeModule.setMode(mode);
@@ -123,7 +123,7 @@ export function grantExtraMinute(): void {
   }
 }
 
-export function getHistory(): UnhookDay[] {
+export function getHistory(): WiltDay[] {
   if (!nativeModule) return [];
   try {
     return nativeModule.getHistory();
@@ -176,7 +176,7 @@ export function setUnlockedCats(count: number): void {
 /**
  * Turn the service back on after a payment pause. Returns true when it was
  * re-enabled directly (adb-granted WRITE_SECURE_SETTINGS); otherwise Settings >
- * Accessibility opens on Unhook's entry and the user flips the switch.
+ * Accessibility opens on Wilt's entry and the user flips the switch.
  */
 export function resumeAfterPayment(): boolean {
   if (!nativeModule) return false;

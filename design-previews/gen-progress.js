@@ -60,7 +60,7 @@ const strip = `
 const homeScreen = `
   <div class="scr">
     <div class="topbar">
-      <div class="brand"><span class="dot"></span>Unhook</div>
+      <div class="brand"><span class="dot"></span>Wilt</div>
       <div style="background:${T.panel};border-radius:999px;padding:8px 14px;font:500 12.5px Inter;color:${T.ink2}">
         Limit <span style="font-weight:600;color:${T.ink}">1h</span> &#9662;</div>
     </div>

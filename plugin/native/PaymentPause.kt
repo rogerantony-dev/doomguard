@@ -1,4 +1,4 @@
-package com.rogerantony.unhook
+package com.rogerantony.wilt
 
 import android.Manifest
 import android.app.AlarmManager
@@ -18,9 +18,9 @@ import android.util.Log
 
 /**
  * Payment apps refuse to run while a third-party accessibility service is
- * enabled. Paytm, for one, shows "Suspicious App Detected" naming Unhook and
+ * enabled. Paytm, for one, shows "Suspicious App Detected" naming Wilt and
  * stops on the amount screen. That is a check on the enabled-services list
- * itself (verified on device with zero Unhook overlay windows attached), so no
+ * itself (verified on device with zero Wilt overlay windows attached), so no
  * overlay or event-filter change can satisfy it. The only thing that does is
  * the service not being enabled while the payment app is up.
  *
@@ -29,7 +29,7 @@ import android.util.Log
  * on is normally the user's job (Android gives an app no way to re-enable its
  * own service), which the app makes a one-tap trip to the right settings
  * screen. On a phone where WRITE_SECURE_SETTINGS has been granted over adb,
- * Unhook re-enables itself: at once from the app, and from an alarm four
+ * Wilt re-enables itself: at once from the app, and from an alarm four
  * minutes after the pause so a forgotten pause does not last all day.
  */
 object PaymentPause {
@@ -85,13 +85,13 @@ object PaymentPause {
         "air.app.scb.breeze.android.main.in.prod" to "SC Mobile",
     )
 
-    private const val TAG = "Unhook"
+    private const val TAG = "Wilt"
 
     const val PREF_PACKAGE = "paymentPausePackage"
     const val PREF_LABEL = "paymentPauseLabel"
     const val PREF_AT = "paymentPausedAt"
 
-    private const val CHANNEL_ID = "unhook_payment_pause"
+    private const val CHANNEL_ID = "wilt_payment_pause"
     private const val NOTIFICATION_ID = 7031
     private const val RESUME_REQUEST = 7032
     private const val AUTO_RESUME_AFTER_MS = 4 * 60 * 1000L
@@ -114,7 +114,7 @@ object PaymentPause {
     }
 
     private fun prefs(context: Context) =
-        context.getSharedPreferences("unhook_reels", Context.MODE_PRIVATE)
+        context.getSharedPreferences("wilt_reels", Context.MODE_PRIVATE)
 
     fun serviceComponent(context: Context): ComponentName =
         ComponentName(context, ReelAccessibilityService::class.java)
@@ -190,7 +190,7 @@ object PaymentPause {
     }
 
     /**
-     * Open Settings > Accessibility with Unhook's service highlighted, so turning
+     * Open Settings > Accessibility with Wilt's service highlighted, so turning
      * it back on is one tap rather than a hunt through the list. The fragment
      * extras are honoured by AOSP and One UI; other skins fall back to the plain
      * accessibility list.
@@ -245,9 +245,9 @@ object PaymentPause {
     // --- Notification ------------------------------------------------------------
 
     /**
-     * The one signal the user gets that Unhook is off. Needs POST_NOTIFICATIONS
+     * The one signal the user gets that Wilt is off. Needs POST_NOTIFICATIONS
      * on Android 13+; the app asks for it once the dashboard is up. Tapping opens
-     * Unhook, whose resume screen does the rest.
+     * Wilt, whose resume screen does the rest.
      */
     private fun notifyPaused(context: Context, appLabel: String) {
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
@@ -259,7 +259,7 @@ object PaymentPause {
                     "Paused for payments",
                     NotificationManager.IMPORTANCE_DEFAULT,
                 ).apply {
-                    description = "Reminds you to turn Unhook back on after using a payment app."
+                    description = "Reminds you to turn Wilt back on after using a payment app."
                 }
             )
         }
@@ -274,9 +274,9 @@ object PaymentPause {
         )
         val auto = canWriteSecureSettings(context)
         val body = if (auto) {
-            "$appLabel blocks payments while Unhook is on. It comes back on its own in 4 minutes, or tap to turn it on now."
+            "$appLabel blocks payments while Wilt is on. It comes back on its own in 4 minutes, or tap to turn it on now."
         } else {
-            "$appLabel blocks payments while Unhook is on. Tap to turn it back on when you are done."
+            "$appLabel blocks payments while Wilt is on. Tap to turn it back on when you are done."
         }
         val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             Notification.Builder(context, CHANNEL_ID)
@@ -286,7 +286,7 @@ object PaymentPause {
         }
         val notification = builder
             .setSmallIcon(android.R.drawable.ic_lock_idle_lock)
-            .setContentTitle("Unhook paused for $appLabel")
+            .setContentTitle("Wilt paused for $appLabel")
             .setContentText(body)
             .setStyle(Notification.BigTextStyle().bigText(body))
             .setContentIntent(tap)
@@ -307,7 +307,7 @@ object PaymentPause {
 class PaymentResumeReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent?) {
         val paused = PaymentPause.pausedPackage(context)
-        Log.d("Unhook", "auto-resume alarm: paused=$paused")
+        Log.d("Wilt", "auto-resume alarm: paused=$paused")
         if (paused == null) return
         PaymentPause.enableService(context)
     }

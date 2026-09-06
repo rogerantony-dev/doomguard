@@ -1,4 +1,4 @@
-package com.rogerantony.unhook
+package com.rogerantony.wilt
 
 import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
@@ -23,7 +23,7 @@ import java.util.Locale
  * cases the system drives directly: the widget being added, the launcher
  * restarting, or a device reboot.
  */
-class UnhookWidgetProvider : AppWidgetProvider() {
+class WiltWidgetProvider : AppWidgetProvider() {
 
     override fun onUpdate(
         context: Context,
@@ -34,7 +34,7 @@ class UnhookWidgetProvider : AppWidgetProvider() {
     }
 
     companion object {
-        private const val PREFS = "unhook_reels"
+        private const val PREFS = "wilt_reels"
         /** Daily limit, in minutes — mirrors BUDGET on the in-app dashboard. */
         private const val BUDGET_MIN = 30
 
@@ -44,7 +44,7 @@ class UnhookWidgetProvider : AppWidgetProvider() {
          */
         fun updateAll(context: Context) {
             val manager = AppWidgetManager.getInstance(context) ?: return
-            val component = ComponentName(context, UnhookWidgetProvider::class.java)
+            val component = ComponentName(context, WiltWidgetProvider::class.java)
             val ids = manager.getAppWidgetIds(component) ?: return
             for (id in ids) renderWidget(context, manager, id)
         }
@@ -61,7 +61,7 @@ class UnhookWidgetProvider : AppWidgetProvider() {
             val shorts = if (fresh) prefs.getInt("shortsCount", 0) else 0
             val seconds = if (fresh) prefs.getInt("seconds", 0) else 0
 
-            val views = RemoteViews(context.packageName, R.layout.unhook_widget)
+            val views = RemoteViews(context.packageName, R.layout.wilt_widget)
             views.setTextViewText(R.id.widget_time, formatTime(seconds))
 
             // Budget line + colour: amber while under the user-set limit, red once over.
@@ -88,7 +88,7 @@ class UnhookWidgetProvider : AppWidgetProvider() {
             context.packageManager.getLaunchIntentForPackage(context.packageName)?.let { launch ->
                 val flags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
                 val pending = PendingIntent.getActivity(context, 0, launch, flags)
-                views.setOnClickPendingIntent(R.id.unhook_widget_root, pending)
+                views.setOnClickPendingIntent(R.id.wilt_widget_root, pending)
             }
 
             manager.updateAppWidget(id, views)

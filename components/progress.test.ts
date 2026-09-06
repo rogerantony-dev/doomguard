@@ -1,7 +1,7 @@
 import { pointsForDay, MAX_POINTS_PER_DAY, nextRungBelow, LADDER, isCleanDay, lifetimePoints, streaks, computeProgress } from "./progress";
-import type { UnhookDay } from "../modules/unhooknative";
+import type { WiltDay } from "../modules/wiltnative";
 
-const day = (date: string, seconds: number, limitMinutes?: number): UnhookDay => ({
+const day = (date: string, seconds: number, limitMinutes?: number): WiltDay => ({
   date, seconds, count: 0, shorts: 0, ...(limitMinutes !== undefined ? { limitMinutes } : {}),
 });
 

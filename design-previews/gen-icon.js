@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Generates the Unhook app icon assets from a single SVG source of truth.
+ * Generates the Wilt app icon assets from a single SVG source of truth.
  *
  *   node design-previews/gen-icon.js
  *
@@ -11,7 +11,7 @@
  *   assets/favicon.png                     48  web
  *
  * The mark: ink cat on deep green. Rounded head with cheeks and a chin, soft ears
- * sat on top, eyes as cut-outs, and a tail curling into a fish hook (the "unhook").
+ * sat on top, eyes as cut-outs, and a tail curling into a fish hook (the "wilt").
  * No rasteriser is installed on this machine, so we render through headless Chrome,
  * the same way the other design-previews scripts do.
  */

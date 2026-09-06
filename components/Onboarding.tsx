@@ -22,9 +22,9 @@ import * as IntentLauncher from "expo-intent-launcher";
 import { C } from "./console";
 import { CATS } from "./cats";
 import { KitCatClock } from "./KitCatClock";
-import { setLimitNow, setMode, type UnhookMode } from "../modules/unhooknative";
+import { setLimitNow, setMode, type WiltMode } from "../modules/wiltnative";
 
-const ANDROID_PACKAGE = "com.rogerantony.unhook";
+const ANDROID_PACKAGE = "com.rogerantony.wilt";
 const WASTE = "#E0913C";
 const PAGES = 4;
 
@@ -81,10 +81,10 @@ export function OnboardingFlow({
   };
 
   // Mode + its options are chosen on pages 6-7, persisted as you go.
-  const [selMode, setSelMode] = useState<UnhookMode>("guilt");
+  const [selMode, setSelMode] = useState<WiltMode>("guilt");
   const [lim, setLim] = useState(30);
 
-  const chooseMode = (m: UnhookMode) => {
+  const chooseMode = (m: WiltMode) => {
     setSelMode(m);
     setMode(m);
   };
@@ -129,7 +129,7 @@ export function OnboardingFlow({
                 className="mt-3 text-center text-[15px] leading-relaxed text-ash"
                 style={{ maxWidth: 300 }}
               >
-                Unhook puts your Reels and Shorts time on a clock that runs down
+                Wilt puts your Reels and Shorts time on a clock that runs down
                 as you scroll, and reddens when it's nearly gone. Or block them
                 cold.
               </Text>
@@ -157,7 +157,7 @@ export function OnboardingFlow({
                 style={{ maxWidth: 300 }}
               >
                 A floating timer and home-screen widget keep the time in sight.
-                And when you're spiraling, Unhook interrupts with a cat to watch
+                And when you're spiraling, Wilt interrupts with a cat to watch
                 instead of the feed.
               </Text>
             </View>
@@ -246,7 +246,7 @@ export function OnboardingFlow({
               Two quick permissions.
             </Text>
             <Text className="mt-2.5 text-[14px] leading-relaxed text-ash">
-              This is how Unhook sees Reels and floats the timer. It only reads
+              This is how Wilt sees Reels and floats the timer. It only reads
               Instagram and YouTube, nothing else, and your data stays on this
               device.
             </Text>
@@ -264,7 +264,7 @@ export function OnboardingFlow({
                 index={2}
                 done={accessibilityDone}
                 title="Enable the accessibility service"
-                body="Find “Unhook Reel Counter” in the list and turn it on. This is how it knows when you're watching Reels."
+                body="Find “Wilt Reel Counter” in the list and turn it on. This is how it knows when you're watching Reels."
                 action="Open accessibility settings"
                 onPress={openAccessibilitySettings}
               />
@@ -358,7 +358,7 @@ function Header({ index, onSkip }: { index: number; onSkip: () => void }) {
         <View
           style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: dim ? C.dim : C.toxic }}
         />
-        <Text className="text-[15px] font-semibold text-bone">Unhook</Text>
+        <Text className="text-[15px] font-semibold text-bone">Wilt</Text>
       </View>
       {canSkip ? (
         <Pressable onPress={onSkip} hitSlop={12} className="active:opacity-60">

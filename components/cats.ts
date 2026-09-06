@@ -9,7 +9,7 @@ import type { ImageSourcePropType } from "react-native";
  * nudge/widget — bump catCount in ReelAccessibilityService.kt to match).
  *
  * The list order IS the unlock order, and the native side indexes into it by
- * position (`unhook_cat_1..N` must line up with cat_1..N here), so keep the two
+ * position (`wilt_cat_1..N` must line up with cat_1..N here), so keep the two
  * in the same order. App.tsx mirrors the unlocked count into prefs so the nudge
  * and the block cover only ever show cats already earned.
  */

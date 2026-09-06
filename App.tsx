@@ -33,9 +33,9 @@ import {
   setLimit,
   setMode,
   setUnlockedCats,
-  type UnhookMode,
-  type UnhookStatus,
-} from "./modules/unhooknative";
+  type WiltMode,
+  type WiltStatus,
+} from "./modules/wiltnative";
 import { computeProgress, type Progress } from "./components/progress";
 import { CAT_THRESHOLDS } from "./components/cats";
 import { ProgressStrip } from "./components/ProgressStrip";
@@ -82,7 +82,7 @@ function useMountEffect(effect: () => void | (() => void)) {
 }
 
 export default function App() {
-  const [status, setStatus] = useState<UnhookStatus | null>(() => getStatus());
+  const [status, setStatus] = useState<WiltStatus | null>(() => getStatus());
   const [confirmGuilt, setConfirmGuilt] = useState(false);
   const [screen, setScreen] = useState<"home" | "history">("home");
   const [catsOpen, setCatsOpen] = useState(false);
@@ -174,7 +174,7 @@ export default function App() {
     dismissPaymentPause();
     refresh();
   }, [refresh]);
-  const mode: UnhookMode = status?.mode ?? "guilt";
+  const mode: WiltMode = status?.mode ?? "guilt";
   const seconds = status?.todaySeconds ?? 0;
   const count = status?.todayCount ?? 0;
   const shorts = status?.todayShorts ?? 0;
@@ -221,7 +221,7 @@ export default function App() {
   });
 
   const changeMode = useCallback(
-    (next: UnhookMode) => {
+    (next: WiltMode) => {
       if (next === mode) return;
       // Leaving Block mode is the moment of weakness, so make them confirm.
       if (mode === "block" && next === "guilt") {
@@ -386,7 +386,7 @@ function Dashboard({
   onOpenHistory,
   onOpenCats,
 }: {
-  mode: UnhookMode;
+  mode: WiltMode;
   seconds: number;
   count: number;
   shorts: number;
@@ -394,7 +394,7 @@ function Dashboard({
   autoBlocked: boolean;
   graceLeft: number;
   onGrantMinute: () => void;
-  onChangeMode: (mode: UnhookMode) => void;
+  onChangeMode: (mode: WiltMode) => void;
   onOpenHistory: () => void;
   onOpenCats: () => void;
 }) {
@@ -625,7 +625,7 @@ function LimitPicker({
         <Pressable onPress={() => {}} className="gap-1.5 rounded-[28px] bg-panel p-6">
           <Text className="text-[21px] font-semibold text-bone">Daily limit</Text>
           <Text className="text-[14px] leading-snug text-ash">
-            Cross it and Unhook blocks the reels.
+            Cross it and Wilt blocks the reels.
           </Text>
           <View className="mt-4 flex-row flex-wrap justify-between gap-y-2.5">
             {LIMIT_OPTIONS.map((m) => {
@@ -676,8 +676,8 @@ function ModeSwitch({
   mode,
   onChangeMode,
 }: {
-  mode: UnhookMode;
-  onChangeMode: (mode: UnhookMode) => void;
+  mode: WiltMode;
+  onChangeMode: (mode: WiltMode) => void;
 }) {
   return (
     <View className="gap-3">
@@ -699,7 +699,7 @@ function ModeSwitch({
       <Text className="px-0.5 text-[13.5px] leading-snug text-ash">
         {mode === "guilt"
           ? "Guilt. Watch all you want, the clock keeps time."
-          : "Block. Unhook backs you out of every reel and short."}
+          : "Block. Wilt backs you out of every reel and short."}
       </Text>
     </View>
   );

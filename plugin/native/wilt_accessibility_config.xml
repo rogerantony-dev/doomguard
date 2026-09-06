@@ -28,6 +28,6 @@
     android:canRetrieveWindowContent="true"
     android:canPerformGestures="true"
     android:isAccessibilityTool="false"
-    android:summary="@string/unhook_accessibility_summary"
-    android:description="@string/unhook_accessibility_description"
+    android:summary="@string/wilt_accessibility_summary"
+    android:description="@string/wilt_accessibility_description"
     android:notificationTimeout="100" />

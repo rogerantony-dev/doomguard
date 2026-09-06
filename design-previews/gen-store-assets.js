@@ -97,7 +97,7 @@ ${mark({ tile: DEEP, body: INK })}`,
 <div class="wrap">
   <div class="tile">${mark({ tile: DEEP, body: INK })}</div>
   <div>
-    <h1>Unhook</h1>
+    <h1>Wilt</h1>
     <p>Your Reels and Shorts, <span class="accent">on the clock</span>. Time them, or wall them off.</p>
   </div>
 </div>`,
@@ -137,7 +137,7 @@ ${mark({ tile: DEEP, body: INK })}`,
 </style>
 <div class="wrap">
   <div class="tile">${mark({ tile: DEEP, body: INK })}</div>
-  <h1>Unhook</h1>
+  <h1>Wilt</h1>
   <p>Your Reels and Shorts, <span class="accent">on the clock</span>. Time them, or wall them off.</p>
   <div class="foot">Android &middot; Open source &middot; No network calls</div>
 </div>`,
