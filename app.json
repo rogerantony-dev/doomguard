@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "Unhook",
-    "slug": "unhook",
+    "name": "Wilt",
+    "slug": "wilt",
     "version": "1.8.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -10,7 +10,7 @@
       "supportsTablet": true
     },
     "android": {
-      "package": "com.rogerantony.unhook",
+      "package": "com.rogerantony.wilt",
       "versionCode": 11,
       "allowBackup": false,
       "blockedPermissions": [

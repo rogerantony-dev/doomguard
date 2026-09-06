@@ -148,7 +148,7 @@ function dots(active) {
 }
 function frame(idx, brandRight, hero, cta) {
   return `<div class="scr">
-    <div class="head"><div class="brand"><span class="bdot"></span>Unhook</div>${brandRight}</div>
+    <div class="head"><div class="brand"><span class="bdot"></span>Wilt</div>${brandRight}</div>
     <div class="hero">${hero}</div>
     <div class="foot">${dots(idx)}<div class="cta">${cta}</div></div>
   </div>`;
@@ -162,7 +162,7 @@ const combined = frame(0, skip, `
     <div class="subcap">of your 30-min daily limit</div>
   </div>
   <div><div class="htitle">Your scroll,<br>on the clock.</div>
-    <div class="hsub">Unhook puts your Reels and Shorts time on a clock that runs down as you scroll, and reddens when it's nearly gone. Or block them cold.</div></div>
+    <div class="hsub">Wilt puts your Reels and Shorts time on a clock that runs down as you scroll, and reddens when it's nearly gone. Or block them cold.</div></div>
 `, "Get started");
 
 const presence = frame(1, skip, `
@@ -177,7 +177,7 @@ const presence = frame(1, skip, `
     <div class="mpill"><span class="r">${ring(0.24, T.waste, "rgba(224,145,60,0.26)")}</span><span class="l">23 min scrolling</span></div>
   </div>
   <div><div class="htitle">Always with you.</div>
-    <div class="hsub">A floating timer and home-screen widget keep the time in sight. And when you're spiraling, Unhook interrupts with a cat to watch instead of the feed.</div></div>
+    <div class="hsub">A floating timer and home-screen widget keep the time in sight. And when you're spiraling, Wilt interrupts with a cat to watch instead of the feed.</div></div>
 `, "Next");
 
 const swBig = (c) => `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="1.9"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2M9 2h6"/></svg>`;
@@ -185,7 +185,7 @@ const shBig = (c) => `<svg width="22" height="22" viewBox="0 0 24 24" fill="none
 const lock = (c) => `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="2"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg>`;
 
 const howItWorks = `<div class="scr">
-  <div class="head"><div class="brand"><span class="bdot"></span>Unhook</div>${skip}</div>
+  <div class="head"><div class="brand"><span class="bdot"></span>Wilt</div>${skip}</div>
   <div style="flex:1;display:flex;flex-direction:column;padding-top:6px">
     <div class="setuptitle">How should it work?</div>
     <div class="setupsub">Pick one. You can change it anytime.</div>
@@ -210,17 +210,17 @@ const howItWorks = `<div class="scr">
 </div>`;
 
 const setup = `<div class="scr">
-  <div class="head"><div class="brand"><span class="bdot" style="background:${T.faint}"></span>Unhook</div></div>
+  <div class="head"><div class="brand"><span class="bdot" style="background:${T.faint}"></span>Wilt</div></div>
   <div style="flex:1;display:flex;flex-direction:column;justify-content:center">
     <div class="setuphead">
       <div class="setuptitle">Two quick permissions.</div>
-      <div class="setupsub">This is how Unhook sees Reels and floats the timer. It only reads Instagram and YouTube, nothing else, and your data stays on this device.</div>
+      <div class="setupsub">This is how Wilt sees Reels and floats the timer. It only reads Instagram and YouTube, nothing else, and your data stays on this device.</div>
     </div>
     <div class="steps">
       <div class="step"><span class="stepn done">${check(T.bg)}</span>
         <div><h4>Draw over other apps</h4><p>Lets the timer float on top of Instagram.</p><div class="ok">✓ Enabled</div></div></div>
       <div class="step"><span class="stepn">2</span>
-        <div><h4>Accessibility service</h4><p>Find “Unhook Reel Counter” and turn it on. This is how it knows when you're watching Reels.</p><div class="go">Open settings ›</div></div></div>
+        <div><h4>Accessibility service</h4><p>Find “Wilt Reel Counter” and turn it on. This is how it knows when you're watching Reels.</p><div class="go">Open settings ›</div></div></div>
     </div>
   </div>
   <div class="foot">${dots(3)}<div class="cta" style="opacity:.5">Finish setup</div></div>

@@ -7,7 +7,7 @@ const {
 const fs = require("fs");
 const path = require("path");
 
-const ACCESSIBILITY_CONFIG_RES = "@xml/unhook_accessibility_config";
+const ACCESSIBILITY_CONFIG_RES = "@xml/wilt_accessibility_config";
 
 /**
  * Shown under the service name in Settings > Accessibility.
@@ -18,10 +18,10 @@ const ACCESSIBILITY_CONFIG_RES = "@xml/unhook_accessibility_config";
  * treats them as escape characters.
  */
 const ACCESSIBILITY_SUMMARY =
-  "Counts your Reels and Shorts time so Unhook can time or block them.";
+  "Counts your Reels and Shorts time so Wilt can time or block them.";
 
 const ACCESSIBILITY_DESCRIPTION =
-  "Unhook uses this service to tell when Instagram Reels or YouTube Shorts is " +
+  "Wilt uses this service to tell when Instagram Reels or YouTube Shorts is " +
   "on screen, so it can count the time you spend there and, once you reach the " +
   "daily limit you set, close the feed. It reads screen content only inside " +
   "Instagram and YouTube. Nothing is recorded, and no data leaves your phone.";
@@ -50,11 +50,11 @@ function withReelCounterStrings(config) {
     config.modResults = AndroidConfig.Strings.setStringItem(
       [
         {
-          $: { name: "unhook_accessibility_summary" },
+          $: { name: "wilt_accessibility_summary" },
           _: ACCESSIBILITY_SUMMARY,
         },
         {
-          $: { name: "unhook_accessibility_description" },
+          $: { name: "wilt_accessibility_description" },
           _: ACCESSIBILITY_DESCRIPTION,
         },
       ],
@@ -107,7 +107,7 @@ function withReelCounterManifest(config) {
         $: {
           "android:name": ".ReelAccessibilityService",
           "android:exported": "false",
-          "android:label": "Unhook Reel Counter",
+          "android:label": "Wilt Reel Counter",
           "android:permission": "android.permission.BIND_ACCESSIBILITY_SERVICE",
         },
         "intent-filter": [
@@ -136,16 +136,16 @@ function withReelCounterManifest(config) {
     // The home-screen widget receiver (reads the same counts the service writes).
     application.receiver = application.receiver || [];
     const widgetDeclared = application.receiver.some(
-      (r) => r.$["android:name"] === ".UnhookWidgetProvider"
+      (r) => r.$["android:name"] === ".WiltWidgetProvider"
     );
     if (!widgetDeclared) {
       application.receiver.push({
         $: {
-          "android:name": ".UnhookWidgetProvider",
+          "android:name": ".WiltWidgetProvider",
           // Exported so every launcher's widget host (incl. Samsung One UI)
           // reliably lists + binds the widget.
           "android:exported": "true",
-          "android:label": "Unhook",
+          "android:label": "Wilt",
         },
         "intent-filter": [
           {
@@ -162,7 +162,7 @@ function withReelCounterManifest(config) {
           {
             $: {
               "android:name": "android.appwidget.provider",
-              "android:resource": "@xml/unhook_widget_info",
+              "android:resource": "@xml/wilt_widget_info",
             },
           },
         ],
@@ -227,8 +227,8 @@ function withReelCounterNativeFiles(config) {
       const xmlDir = path.join(resRoot, "xml");
       fs.mkdirSync(xmlDir, { recursive: true });
       fs.copyFileSync(
-        path.join(sourceDir, "unhook_accessibility_config.xml"),
-        path.join(xmlDir, "unhook_accessibility_config.xml")
+        path.join(sourceDir, "wilt_accessibility_config.xml"),
+        path.join(xmlDir, "wilt_accessibility_config.xml")
       );
 
       // Widget resources (layout/drawable/xml) -> app/src/main/res/<type>/

@@ -87,7 +87,7 @@ body{background:#202024;font-family:"JetBrains Mono",monospace}
 .opt.onblk{background:#2BD46F;color:#06231a}
 </style>`;
 
-const topbar = (armed) => `<div class="topbar"><span><span class="red">●</span> UNHOOK</span><span>${armed}</span></div>`;
+const topbar = (armed) => `<div class="topbar"><span><span class="red">●</span> WILT</span><span>${armed}</span></div>`;
 const barcode = `<div class="barcode"></div><div class="barnum">DG 00 23 14 07</div>`;
 
 const screens = {};
@@ -98,7 +98,7 @@ screens.guilt = `
   <div class="slip">
     <div class="stamp">PAST DUE</div>
     <div class="r-center">
-      <div class="r-brand">UNHOOK<span class="r-reg">®</span></div>
+      <div class="r-brand">WILT<span class="r-reg">®</span></div>
       <div class="r-sub">Daily Doom Receipt</div>
     </div>
     <div class="r-meta"><span>TUE 17 JUN</span><span>TERMINAL · LOCAL</span></div>
@@ -126,7 +126,7 @@ screens.block = `
   <div class="slip">
     <div class="stamp ok">VOID</div>
     <div class="r-center">
-      <div class="r-brand">UNHOOK<span class="r-reg">®</span></div>
+      <div class="r-brand">WILT<span class="r-reg">®</span></div>
       <div class="r-sub">Daily Doom Receipt</div>
     </div>
     <div class="r-meta"><span>TUE 17 JUN</span><span>TERMINAL · LOCAL</span></div>
@@ -150,7 +150,7 @@ screens.onboarding = `
   ${topbar("ACTIVATION")}
   <div class="slip">
     <div class="r-center">
-      <div class="r-brand">UNHOOK<span class="r-reg">®</span></div>
+      <div class="r-brand">WILT<span class="r-reg">®</span></div>
       <div class="r-sub">Activation Slip · 1/2</div>
     </div>
     <hr class="dash"/>
@@ -158,7 +158,7 @@ screens.onboarding = `
       <small>Lets the counter pill float on top of Instagram.</small></span></div>
     <hr class="dot"/>
     <div class="chk"><span class="box">2</span><span>ENABLE ACCESSIBILITY SERVICE
-      <small>Find "Unhook Reel Counter" in the list and switch it on. This is how the app knows when you're watching reels.</small></span></div>
+      <small>Find "Wilt Reel Counter" in the list and switch it on. This is how the app knows when you're watching reels.</small></span></div>
     <hr class="dash"/>
     <div class="note">*** arm both to start the meter ***</div>
     ${barcode}

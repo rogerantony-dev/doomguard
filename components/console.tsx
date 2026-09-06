@@ -2,7 +2,7 @@ import { type ReactNode } from "react";
 import { Pressable, Text, View, type TextProps } from "react-native";
 
 /**
- * Shared building blocks for Unhook's "Quiet" look — minimal and dark-first.
+ * Shared building blocks for Wilt's "Quiet" look — minimal and dark-first.
  * Near-black canvas, warm off-white text, generous whitespace, and a single
  * green accent used only where it carries meaning (service on, blocked/safe,
  * enabled, improving). No instrument framing, scanlines, or hazard tape.
@@ -38,7 +38,7 @@ export function Brand({ on = true }: { on?: boolean }) {
         }}
       />
       <Text className="text-[16px] font-semibold text-bone" style={{ letterSpacing: -0.2 }}>
-        Unhook
+        Wilt
       </Text>
     </View>
   );

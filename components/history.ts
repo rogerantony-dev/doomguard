@@ -1,10 +1,10 @@
-import type { UnhookDay } from "../modules/unhooknative";
+import type { WiltDay } from "../modules/wiltnative";
 
 export type HistoryRange = "7d" | "30d" | "all";
 
 export type HistoryView = {
   /** Contiguous, ascending, zero-filled days ending at `today`. */
-  series: UnhookDay[];
+  series: WiltDay[];
   totalSeconds: number;
   totalCount: number;
   totalShorts: number;
@@ -38,8 +38,8 @@ export function fromDayIndex(index: number): string {
 }
 
 /** Contiguous zero-filled days from startIndex..endIndex inclusive. */
-function fill(byDate: Map<string, UnhookDay>, startIndex: number, endIndex: number): UnhookDay[] {
-  const out: UnhookDay[] = [];
+function fill(byDate: Map<string, WiltDay>, startIndex: number, endIndex: number): WiltDay[] {
+  const out: WiltDay[] = [];
   for (let i = startIndex; i <= endIndex; i++) {
     const date = fromDayIndex(i);
     out.push(byDate.get(date) ?? { date, seconds: 0, count: 0, shorts: 0 });
@@ -47,8 +47,8 @@ function fill(byDate: Map<string, UnhookDay>, startIndex: number, endIndex: numb
   return out;
 }
 
-export function buildView(history: UnhookDay[], range: HistoryRange, today: string): HistoryView {
-  const byDate = new Map<string, UnhookDay>();
+export function buildView(history: WiltDay[], range: HistoryRange, today: string): HistoryView {
+  const byDate = new Map<string, WiltDay>();
   for (const d of history) byDate.set(d.date, d);
 
   const todayIndex = toDayIndex(today);

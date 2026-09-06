@@ -111,7 +111,7 @@ function guilt(minutes, reels, shorts, caption) {
     : `${BUDGET - minutes} min left of your ${BUDGET}-min limit`;
   return `<div class="scr">
     <div class="toprow">
-      <div class="brand"><span class="dot"></span>Unhook</div>
+      <div class="brand"><span class="dot"></span>Wilt</div>
       <div class="limitchip">Limit <b>${BUDGET}m</b> <span class="cv">▾</span></div>
     </div>
     <div style="margin-top:40px">
@@ -133,7 +133,7 @@ function guilt(minutes, reels, shorts, caption) {
 }
 
 const block = `<div class="scr">
-  <div class="brand"><span class="dot"></span>Unhook</div>
+  <div class="brand"><span class="dot"></span>Wilt</div>
   <div class="shieldc">${sh(T.green)}</div>
   <div class="safetitle">Reels can't<br>reach you.</div>
   <div class="safesub">Every reel and short gets bounced the second it appears.</div>
@@ -151,7 +151,7 @@ const LIMITS = [
 ];
 const limitSheet = `
 <div class="scr" style="filter:blur(2px);opacity:.45">
-  <div class="toprow"><div class="brand"><span class="dot"></span>Unhook</div>
+  <div class="toprow"><div class="brand"><span class="dot"></span>Wilt</div>
     <div class="limitchip">Limit <b>${BUDGET}m</b> <span class="cv">▾</span></div></div>
   <div style="margin-top:40px"><div class="bignum num" style="color:${T.waste}">23<span class="u">min wasted today</span></div></div>
   ${wall(23)}

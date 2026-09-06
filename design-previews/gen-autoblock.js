@@ -105,13 +105,13 @@ const alert = `<div class="reel"></div>
   <div class="shieldc">${shield(T.green, 34)}</div>
   <span class="tag" style="margin-top:16px">60 min today</span>
   <h4>That's your limit.</h4>
-  <p>You've spent an hour on reels today. Unhook's putting the wall up. Reels are blocked until midnight.</p>
+  <p>You've spent an hour on reels today. Wilt's putting the wall up. Reels are blocked until midnight.</p>
   <span class="btn green" style="align-self:stretch">Okay</span>
   <span class="btn ghost">Give me 5 more minutes</span>
 </div></div>`;
 
 const dashboard = `<div class="scr">
-  <div class="toprow"><div class="brand"><span class="dot"></span>Unhook</div>
+  <div class="toprow"><div class="brand"><span class="dot"></span>Wilt</div>
     <div class="limitchip">Limit <b>1h</b> <span style="font-size:11px;color:${T.faint}">▾</span></div></div>
   <div class="shieldbig">${shield(T.green, 40)}</div>
   <div class="kick">Limit reached · blocked</div>
@@ -123,12 +123,12 @@ const dashboard = `<div class="scr">
 </div>`;
 
 const sheet = `<div class="scr" style="filter:blur(2px);opacity:.4">
-  <div class="toprow"><div class="brand"><span class="dot"></span>Unhook</div></div>
+  <div class="toprow"><div class="brand"><span class="dot"></span>Wilt</div></div>
   <div class="shieldbig">${shield(T.green,40)}</div><div class="dtitle">Walled off.</div>
 </div>
 <div class="scrim bottom"><div class="sheet">
   <h3>Daily limit</h3>
-  <div class="ssub">Cross it and Unhook blocks the reels.</div>
+  <div class="ssub">Cross it and Wilt blocks the reels.</div>
   <div class="optgrid">
     ${[["15m",0],["30m",0],["45m",0],["1h",1],["1h 30",0],["2h",0]].map(([l,s])=>`<div class="opt2 ${s?"sel":""}">${l}</div>`).join("")}
   </div>

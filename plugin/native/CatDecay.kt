@@ -1,4 +1,4 @@
-package com.rogerantony.unhook
+package com.rogerantony.wilt
 
 import android.graphics.Color
 
@@ -6,7 +6,7 @@ import android.graphics.Color
  * The cat that rots. One drawing of the mascot, decaying with the minutes
  * spent against the daily limit: fresh, wilting, mouldy, rotting, nearly gone,
  * and a skull once the limit is blown. Six frames, drawn from
- * design-previews/rot-cat.js and rendered to res/drawable/unhook_catface_1..6.
+ * design-previews/rot-cat.js and rendered to res/drawable/wilt_catface_1..6.
  *
  * The pill and the home-screen widget both read from here so they can never
  * disagree about what the cat looks like. Bands are fractions of the limit;
@@ -33,12 +33,12 @@ object CatDecay {
         drawableForStage(stage(usedMinutes, limitMinutes))
 
     fun drawableForStage(stage: Int): Int = when (stage) {
-        6 -> R.drawable.unhook_catface_6
-        5 -> R.drawable.unhook_catface_5
-        4 -> R.drawable.unhook_catface_4
-        3 -> R.drawable.unhook_catface_3
-        2 -> R.drawable.unhook_catface_2
-        else -> R.drawable.unhook_catface_1
+        6 -> R.drawable.wilt_catface_6
+        5 -> R.drawable.wilt_catface_5
+        4 -> R.drawable.wilt_catface_4
+        3 -> R.drawable.wilt_catface_3
+        2 -> R.drawable.wilt_catface_2
+        else -> R.drawable.wilt_catface_1
     }
 
     /**

@@ -1,7 +1,7 @@
 import { buildView, fromDayIndex, toDayIndex } from "./history";
-import type { UnhookDay } from "../modules/unhooknative";
+import type { WiltDay } from "../modules/wiltnative";
 
-const day = (date: string, seconds: number, count = 0, shorts = 0): UnhookDay => ({
+const day = (date: string, seconds: number, count = 0, shorts = 0): WiltDay => ({
   date,
   seconds,
   count,

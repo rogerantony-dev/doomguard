@@ -17,12 +17,12 @@ import Svg, { Line, Rect } from "react-native-svg";
 
 import { C, Kicker, Segmented } from "./console";
 import { buildView, type HistoryRange } from "./history";
-import { getHistory } from "../modules/unhooknative";
+import { getHistory } from "../modules/wiltnative";
 
 type Metric = "time" | "count";
 
 /** Where the app's source lives, linked from the History footer. */
-const REPO_URL = "https://github.com/rogerantony-dev/unhook";
+const REPO_URL = "https://github.com/rogerantony-dev/wilt";
 
 // Monochrome series colours — reels read as the primary tone, shorts a step back.
 const REELS = C.bone;
@@ -263,7 +263,7 @@ function SourceLink() {
       <Text className="text-[12.5px] font-medium text-ash">Open source</Text>
       <View className="mt-1 flex-row items-center gap-1.5">
         <Ionicons name="logo-github" size={13} color={C.dim} />
-        <Text className="text-[12.5px] text-dim">github.com/rogerantony-dev/unhook</Text>
+        <Text className="text-[12.5px] text-dim">github.com/rogerantony-dev/wilt</Text>
         <Ionicons name="open-outline" size={11} color={C.dim} />
       </View>
     </Pressable>

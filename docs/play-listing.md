@@ -4,7 +4,7 @@ Copy for the store listing and, more importantly, the answers to the forms that
 decide whether an app in this category gets approved. Everything here is drawn
 from what the code actually does, so keep it in sync if the behaviour changes.
 
-Package: `com.rogerantony.unhook`
+Package: `com.rogerantony.wilt`
 
 ---
 
@@ -21,7 +21,7 @@ carefully and specifically. Vagueness reads as evasion.
 
 **What is the core functionality that requires it:**
 
-> Unhook is a screen-time tool that helps people cut down on short-form video.
+> Wilt is a screen-time tool that helps people cut down on short-form video.
 > Its core function is to measure how long the user spends on Instagram Reels and
 > YouTube Shorts, show that time back to them live, and block those feeds once
 > they pass a daily limit they set themselves.
@@ -42,12 +42,12 @@ carefully and specifically. Vagueness reads as evasion.
 
 **How users are told, before enabling it:** The onboarding flow has a dedicated
 screen explaining both permissions before either is requested. Its wording:
-"This is how Unhook sees Reels and floats the timer. It only reads Instagram and
+"This is how Wilt sees Reels and floats the timer. It only reads Instagram and
 YouTube, nothing else, and your data stays on this device." The service also
 carries an `android:description` shown in Android's own accessibility settings.
 
 **Video demo:** Play usually asks for a link to a short screen recording showing
-the feature in use. Recorded at `docs/store/unhook-demo.mp4` (70s, 1080x2340).
+the feature in use. Recorded at `docs/store/wilt-demo.mp4` (70s, 1080x2340).
 Upload it unlisted to YouTube and paste the link into the declaration.
 
 What it shows, in order: the dashboard with today's time and the budget left, then
@@ -110,7 +110,7 @@ Expected outcome: rated for everyone.
 **App name (30 chars max)**
 
 ```
-Unhook
+Wilt
 ```
 
 **Short description (80 chars max)**
@@ -122,11 +122,11 @@ Time your Reels and Shorts, or wall them off. A quiet screen-time app.
 **Full description (4000 chars max)**
 
 ```
-Short-form video is designed to take your time without you noticing. Unhook
+Short-form video is designed to take your time without you noticing. Wilt
 makes that time visible, then helps you stop.
 
 WATCH THE CLOCK RUN DOWN
-Unhook counts the minutes you spend on Instagram Reels and YouTube Shorts. A
+Wilt counts the minutes you spend on Instagram Reels and YouTube Shorts. A
 floating timer sits on top of the feed while you scroll, so the cost is never
 hidden. It reddens as you approach your limit.
 
@@ -136,7 +136,7 @@ you choose. Block mode walls off Reels and Shorts entirely, from the moment you
 open the app.
 
 AN INTERRUPTION THAT IS NOT A LECTURE
-When you have been scrolling a while, Unhook interrupts with a cat to look at
+When you have been scrolling a while, Wilt interrupts with a cat to look at
 instead of the feed. Keep going if you want. It is a pause, not a punishment.
 
 SEE YOUR WEEK
@@ -144,11 +144,11 @@ A home-screen widget and a history screen show the pattern over days, so you can
 tell whether it is actually getting better.
 
 BUILT TO STAY OUT OF THE WAY
-No account. No sign-up. No ads. No analytics. Unhook makes no network requests
+No account. No sign-up. No ads. No analytics. Wilt makes no network requests
 at all, and everything it records stays in your phone's private storage.
 
 HOW IT WORKS
-Unhook uses Android's accessibility service to tell when a Reel or a Short is on
+Wilt uses Android's accessibility service to tell when a Reel or a Short is on
 screen. That is the only way an Android app can know this. The service is limited
 to Instagram and YouTube, it reads nothing else on your phone, and what it sees
 is counted and discarded, never stored or sent anywhere. You turn it on yourself
@@ -197,7 +197,7 @@ Paste this into Play Console > App content > Privacy policy, and into the
 store listing:
 
 ```
-https://rogerantony-dev.github.io/unhook/
+https://rogerantony-dev.github.io/wilt/
 ```
 
 Served by GitHub Pages from the `gh-pages` branch of this repo, which holds

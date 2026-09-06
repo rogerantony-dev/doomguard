@@ -1,5 +1,5 @@
 /*
- * "Quiet" redesign preview — a minimal, low-noise direction for Unhook.
+ * "Quiet" redesign preview — a minimal, low-noise direction for Wilt.
  * Near-monochrome, one typeface (Inter), generous whitespace, no rings/
  * gradients/heat scales/heavy cards. A single accent (green) appears only where
  * it carries meaning: system-on, blocked/safe, done, improving.
@@ -161,7 +161,7 @@ const swIcon = (c) => `<svg width="16" height="16" viewBox="0 0 24 24" fill="non
 const shIcon = (c) => `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="1.9"><path d="M12 3l7 3v5c0 4.4-3 7.4-7 8-4-.6-7-3.6-7-8V6z"/></svg>`;
 const CAT = "https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=240&q=70";
 
-const FOOT = `<div class="foot">Unhook only reads Instagram &amp; YouTube's screen, <b>nothing else</b>. Your count lives only on this device.</div>`;
+const FOOT = `<div class="foot">Wilt only reads Instagram &amp; YouTube's screen, <b>nothing else</b>. Your count lives only on this device.</div>`;
 const clamp = (v,a,b)=>Math.min(b,Math.max(a,v));
 
 function modeSwitch(active, hint) {
@@ -181,7 +181,7 @@ function dashboard({ minutes, reels, shorts, vibeT, vibeS }) {
   return `
 <div class="scr">
   <div class="topbar">
-    <div class="brand"><span class="dot"></span>Unhook</div>
+    <div class="brand"><span class="dot"></span>Wilt</div>
     <span class="icon">${gear()}</span>
   </div>
 
@@ -213,7 +213,7 @@ screens.guiltHeavy = dashboard({ minutes:95, reels:61, shorts:28, vibeT:"Where'd
 screens.block = `
 <div class="scr">
   <div class="topbar">
-    <div class="brand"><span class="dot"></span>Unhook</div>
+    <div class="brand"><span class="dot"></span>Wilt</div>
     <span class="icon">${gear()}</span>
   </div>
 
@@ -227,7 +227,7 @@ screens.block = `
     <div class="counts" style="margin-top:6px"><b class="num">14</b> reels &nbsp;·&nbsp; <b class="num">7</b> shorts <span style="color:var(--faint)">logged today</span></div>
   </div>
 
-  ${modeSwitch("block", "Block — Unhook backs you out of every reel and short.")}
+  ${modeSwitch("block", "Block — Wilt backs you out of every reel and short.")}
 
   <div class="actions">
     <div class="btn subtle">Cats, not reels</div>
@@ -238,12 +238,12 @@ screens.block = `
 screens.onboarding = `
 <div class="scr">
   <div class="topbar">
-    <div class="brand"><span class="dot"></span>Unhook</div>
+    <div class="brand"><span class="dot"></span>Wilt</div>
   </div>
   <div style="margin-top:40px">
     <div class="kicker">Setup · 1 of 2</div>
     <div class="blocktitle" style="margin-top:14px;font-size:27px">Two quick permissions.</div>
-    <div class="blocksub" style="margin-top:10px">Unhook times the reels and shorts you watch each day.</div>
+    <div class="blocksub" style="margin-top:10px">Wilt times the reels and shorts you watch each day.</div>
   </div>
 
   <div class="steps">
@@ -259,7 +259,7 @@ screens.onboarding = `
       <span class="stepn">2</span>
       <div>
         <h3>Enable the accessibility service</h3>
-        <p>Find “Unhook Reel Counter” in the list and turn it on. This is how the app knows when you're watching Reels.</p>
+        <p>Find “Wilt Reel Counter” in the list and turn it on. This is how the app knows when you're watching Reels.</p>
         <span class="link">Open accessibility settings ${chev()}</span>
       </div>
     </div>
@@ -319,7 +319,7 @@ screens.nudge = `
 
 screens.modal = `
 <div class="scr" style="filter:blur(3px);opacity:.5">
-  <div class="topbar"><div class="brand"><span class="dot"></span>Unhook</div></div>
+  <div class="topbar"><div class="brand"><span class="dot"></span>Wilt</div></div>
   <div class="blockmark"><div class="checkc"></div><div class="blocktitle">Reels can't reach you.</div></div>
 </div>
 <div class="scrim">
