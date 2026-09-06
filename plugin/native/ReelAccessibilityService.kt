@@ -1291,7 +1291,7 @@ class ReelAccessibilityService : AccessibilityService() {
 
         if (!overlayShown) buildPill()
         catView?.setImageResource(catFaceRes())
-        pillLabel?.setTextColor(Color.WHITE)
+        pillLabel?.setTextColor(CatDecay.textColor(currentSeconds() / 60, limitMinutes()))
         pillLabel?.text = debugText ?: pillText(currentSeconds())
     }
 
@@ -1300,24 +1300,13 @@ class ReelAccessibilityService : AccessibilityService() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         if (!Settings.canDrawOverlays(this)) return
         if (!overlayShown) buildPill()
-        catView?.setImageResource(R.drawable.unhook_catface_5) // drained
+        catView?.setImageResource(CatDecay.drawableForStage(6)) // gone
         pillLabel?.setTextColor(Color.parseColor("#38C786"))
         pillLabel?.text = "Blocked"
     }
 
     /** Cat face for the pill/widget by how close today's time is to the limit. */
-    private fun catFaceRes(): Int {
-        val used = currentSeconds() / 60
-        val budget = limitMinutes()
-        val frac = if (budget > 0) used.toDouble() / budget else 0.0
-        return when {
-            used >= budget -> R.drawable.unhook_catface_5
-            frac >= 0.90 -> R.drawable.unhook_catface_4
-            frac >= 0.65 -> R.drawable.unhook_catface_3
-            frac >= 0.35 -> R.drawable.unhook_catface_2
-            else -> R.drawable.unhook_catface_1
-        }
-    }
+    private fun catFaceRes(): Int = CatDecay.drawable(currentSeconds() / 60, limitMinutes())
 
     private fun buildPill() {
         val cat = ImageView(this).apply {
