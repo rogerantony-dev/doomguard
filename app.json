@@ -2,7 +2,7 @@
   "expo": {
     "name": "Unhook",
     "slug": "unhook",
-    "version": "1.7.0",
+    "version": "1.8.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -11,7 +11,7 @@
     },
     "android": {
       "package": "com.rogerantony.unhook",
-      "versionCode": 10,
+      "versionCode": 11,
       "allowBackup": false,
       "blockedPermissions": [
         "android.permission.READ_EXTERNAL_STORAGE",
