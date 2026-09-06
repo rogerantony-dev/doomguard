@@ -16,7 +16,7 @@
 <p align="center">
   <img src="docs/screenshots/guilt-counting.png" width="255" alt="Home screen showing 0 minutes wasted today and 15 minutes left on the clock">
   <img src="docs/screenshots/guilt-limit-reached.png" width="255" alt="Home screen after the limit is reached, reading walled off till midnight">
-  <img src="docs/screenshots/block-cover-feed.png" width="255" alt="Instagram feed blanked out and replaced with a cat photo">
+  <img src="docs/screenshots/block-cover.png" width="255" alt="Instagram feed blanked out and replaced with a cat photo">
 </p>
 
 It times how long you spend in those two feeds, shows the number *while you are in them*, and blocks the feeds once you pass a daily limit you set. Android only. No account, and nothing leaves your device.
