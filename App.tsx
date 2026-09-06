@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AppState,
   BackHandler,
+  Image,
   Modal,
   PermissionsAndroid,
   Platform,
@@ -37,7 +38,7 @@ import {
   type WiltStatus,
 } from "./modules/wiltnative";
 import { computeProgress, type Progress } from "./components/progress";
-import { CAT_THRESHOLDS } from "./components/cats";
+import { CATS, CAT_THRESHOLDS } from "./components/cats";
 import { ProgressStrip } from "./components/ProgressStrip";
 import { MilestoneModal } from "./components/MilestoneModal";
 import { KitCatClock } from "./components/KitCatClock";
@@ -292,6 +293,7 @@ export default function App() {
                 limit={limit}
                 autoBlocked={autoBlocked}
                 graceLeft={graceLeft}
+                unlockedCount={progress.unlockedCount}
                 onGrantMinute={grantMinute}
                 onChangeMode={changeMode}
                 onOpenHistory={() => setScreen("history")}
@@ -382,6 +384,7 @@ function Dashboard({
   limit,
   autoBlocked,
   graceLeft,
+  unlockedCount,
   onGrantMinute,
   onChangeMode,
   onOpenHistory,
@@ -394,6 +397,7 @@ function Dashboard({
   limit: number;
   autoBlocked: boolean;
   graceLeft: number;
+  unlockedCount: number;
   onGrantMinute: () => void;
   onChangeMode: (mode: WiltMode) => void;
   onOpenHistory: () => void;
@@ -412,7 +416,7 @@ function Dashboard({
       ) : mode === "guilt" ? (
         <GuiltHero minutes={minutes} count={count} shorts={shorts} limit={limit} />
       ) : (
-        <BlockHero count={count} />
+        <BlockHero count={count} unlockedCount={unlockedCount} />
       )}
 
       {limitReached ? (
@@ -522,15 +526,19 @@ function GuiltHero({
   );
 }
 
-function BlockHero({ count }: { count: number }) {
+function BlockHero({ count, unlockedCount }: { count: number; unlockedCount: number }) {
+  // One of the cats you have earned, picked once when the screen mounts so it
+  // does not reshuffle on every status refresh. The first cat is always free.
+  const [pick] = useState(() => Math.floor(Math.random() * Math.max(1, unlockedCount)));
+  const cat = CATS[Math.min(pick, CATS.length - 1)];
   return (
     <View className="mt-14">
-      <View
-        className="h-[72px] w-[72px] items-center justify-center rounded-full"
-        style={{ backgroundColor: "rgba(56,199,134,0.14)" }}
-      >
-        <Ionicons name="shield-checkmark" size={32} color={C.toxic} />
-      </View>
+      <Image
+        source={cat.src}
+        resizeMode="cover"
+        accessibilityLabel="One of your unlocked cats"
+        style={{ width: 132, height: 132, borderRadius: 24 }}
+      />
       <Text className="mt-6 text-[32px] font-semibold text-bone" style={{ letterSpacing: -0.6, lineHeight: 36 }}>
         Reels can't{"\n"}reach you.
       </Text>
