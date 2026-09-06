@@ -33,12 +33,19 @@ carefully and specifically. Vagueness reads as evasion.
 > direct messages inside Instagram, so the app cannot perform its core function
 > without this permission.
 >
-> The service is scoped in its configuration to two packages only,
-> `com.instagram.android` and `com.google.android.youtube`. It uses the
-> information to increment a timer and, at the limit, to navigate away from the
-> feed. Screen content is evaluated in the moment and discarded. Nothing is
-> recorded, stored, logged, or transmitted, and the app makes no network requests
-> at all.
+> Screen content is read in two apps only, `com.instagram.android` and
+> `com.google.android.youtube`. There the service uses it to increment a timer
+> and, at the limit, to navigate away from the feed. Screen content is evaluated
+> in the moment and discarded. Nothing is recorded, stored, logged, or
+> transmitted, and the app makes no network requests at all.
+>
+> Outside those two apps the service subscribes only to window-switch events
+> (TYPE_WINDOW_STATE_CHANGED and TYPE_WINDOWS_CHANGED), which carry the package
+> name or window title of the app coming to the front. It uses that for one
+> purpose: some UPI and banking apps refuse to run while any third-party
+> accessibility service is enabled, so when such an app comes to the front the
+> service disables itself (AccessibilityService.disableSelf) and notifies the
+> user, who re-enables it afterwards. No content of any other app is read.
 
 **How users are told, before enabling it:** The onboarding flow has a dedicated
 screen explaining both permissions before either is requested. Its wording:
@@ -47,8 +54,10 @@ YouTube, nothing else, and your data stays on this device." The service also
 carries an `android:description` shown in Android's own accessibility settings.
 
 **Video demo:** Play usually asks for a link to a short screen recording showing
-the feature in use. Recorded at `docs/store/wilt-demo.mp4` (70s, 1080x2340).
-Upload it unlisted to YouTube and paste the link into the declaration.
+the feature in use. The existing recording, `docs/store/unhook-demo.mp4` (70s,
+1080x2340), predates the rename and shows the Unhook branding and the old cat;
+re-record it as Wilt before submitting, then upload it unlisted to YouTube and
+paste the link into the declaration.
 
 What it shows, in order: the dashboard with today's time and the budget left, then
 Instagram Reels with the floating timer counting while the feed is scrolled, then
@@ -62,6 +71,27 @@ permission screen and the Settings toggle. Note that force-stopping the app turn
 the service off, which is a quick way to get back to the onboarding state.
 
 ---
+
+## Other permissions a reviewer may ask about
+
+None of these has a Play Console declaration form today, but the answers should
+be ready.
+
+- **SYSTEM_ALERT_WINDOW.** Draws the floating timer and the block cover over
+  Instagram and YouTube. Requested in onboarding with an explanation.
+- **POST_NOTIFICATIONS.** One notification only: "Wilt paused for <payment app>",
+  posted when the service switches itself off for a UPI or banking app, so the
+  user knows to turn it back on. Requested after setup completes.
+- **SCHEDULE_EXACT_ALARM.** Used for a single alarm that re-enables the
+  accessibility service four minutes after a payment pause. Only functional when
+  the user has also granted secure-settings access over adb, which normal users
+  never do; without that grant the alarm is scheduled inexactly. Not requested
+  from the user in the app.
+- **WRITE_SECURE_SETTINGS.** Declared so a developer can grant it over adb, which
+  lets the app re-enable its own accessibility service after a payment pause.
+  The system never grants it to a normal install, and the app never asks for it.
+- **INTERNET.** Added by the Expo/React Native runtime. The app makes no
+  network requests; there is no analytics, crash reporting, or update channel.
 
 ## Data Safety form
 
@@ -149,8 +179,8 @@ at all, and everything it records stays in your phone's private storage.
 
 HOW IT WORKS
 Wilt uses Android's accessibility service to tell when a Reel or a Short is on
-screen. That is the only way an Android app can know this. The service is limited
-to Instagram and YouTube, it reads nothing else on your phone, and what it sees
+screen. That is the only way an Android app can know this. It reads screen
+content only inside Instagram and YouTube, nothing else on your phone, and what it sees
 is counted and discarded, never stored or sent anywhere. You turn it on yourself
 during setup and can turn it off at any time in Android Settings.
 ```
@@ -214,8 +244,11 @@ both** and bump the date in each.
 
 - [x] Privacy policy hosted at a public URL
 - [x] Store graphics generated (icon, feature graphic)
-- [x] Phone screenshots captured and converted to 9:16
-- [x] Demo video recorded for the accessibility declaration
+- [x] Phone screenshots captured and converted to 9:16 (recaptured as Wilt on
+      6 September 2026; the nudge shot is missing and `docs/screenshots/`
+      still has three Unhook-era images: limit reached, the widget, the pill)
+- [ ] Demo video re-recorded as Wilt (the existing one is Unhook-branded)
+- [x] EAS project relinked under the `wilt` slug (`@rogerantony/wilt`)
 - [ ] Complete **Android developer verification**, or publishing is blocked
 - [ ] Build a signed AAB: `eas build --platform android --profile production`
 - [ ] Upload the demo video to YouTube as unlisted, keep the link

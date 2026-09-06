@@ -1,4 +1,4 @@
-import { pointsForDay, MAX_POINTS_PER_DAY, nextRungBelow, LADDER, isCleanDay, lifetimePoints, streaks, computeProgress } from "./progress";
+import { pointsForDay, MAX_POINTS_PER_DAY, nextRungBelow, LADDER, isCleanDay, lifetimePoints, bankedPoints, pendingPoints, streaks, computeProgress } from "./progress";
 import type { WiltDay } from "../modules/wiltnative";
 
 const day = (date: string, seconds: number, limitMinutes?: number): WiltDay => ({
@@ -149,10 +149,12 @@ describe("computeProgress", () => {
   });
 
   it("reports newly crossed cat thresholds as pending unlocks (the free cat unlocks silently)", () => {
-    // 7 days spending 1 of 15 minutes = 47/day = 329 pts -> crosses 0,50,150.
-    // The free cat (threshold 0) is unlocked from install, so it never fires.
+    // 7 days spending 1 of 15 minutes = 47/day. Today (the 7th) is not banked
+    // yet, so 6 days = 282 pts -> crosses 0,50,150. The free cat (threshold 0)
+    // is unlocked from install, so it never fires.
     const p = computeProgress(clean7(15, 1), 15, "2026-07-07", thresholds, noneSeen);
-    expect(p.points).toBe(329);
+    expect(p.points).toBe(282);
+    expect(p.pendingPoints).toBe(47);
     expect(p.unlockedCount).toBe(3);
     expect(p.pendingCatUnlocks).toEqual([50, 150]);
   });
@@ -163,14 +165,36 @@ describe("computeProgress", () => {
     expect(p.pendingCatUnlocks).toEqual([150]);
   });
 
-  it("keeps cats unlocked when today's points fall back as the user scrolls", () => {
-    // Today's contribution shrinks in real time, so the running total can drop.
-    // A cat already earned and celebrated must not re-lock underneath the user.
+  it("does not bank today, so a fresh install has nothing to unlock and nothing to re-lock", () => {
+    // Today alone: no completed day, so 0 banked. Nothing scrolled yet means a
+    // full day is pending. Only the free cat is open and no card fires.
+    const fresh = computeProgress([day("2026-07-07", 0, 30)], 30, "2026-07-07", thresholds, noneSeen);
+    expect(fresh.points).toBe(0);
+    expect(fresh.pendingPoints).toBe(MAX_POINTS_PER_DAY);
+    expect(fresh.unlockedCount).toBe(1);
+    expect(fresh.pendingCatUnlocks).toEqual([]);
+    // Scrolling most of today drains the pending value but touches nothing banked.
+    const slipped = computeProgress([day("2026-07-07", mins(29), 30)], 30, "2026-07-07", thresholds, noneSeen);
+    expect(slipped.points).toBe(0);
+    expect(slipped.pendingPoints).toBe(2);
+    expect(slipped.unlockedCount).toBe(1);
+  });
+
+  it("still honours a celebrated high-water mark from the old rule", () => {
     const earned = { lastCelebratedStreakMilestone: 0, lastPointsCelebrated: 150 };
-    const slipped = [day("2026-07-07", mins(29), 30)]; // 1 of 30 min left -> 2 pts
-    const p = computeProgress(slipped, 30, "2026-07-07", thresholds, earned);
-    expect(p.points).toBe(2);
-    expect(p.unlockedCount).toBe(3); // 0, 50 and 150 stay unlocked
+    const p = computeProgress([day("2026-07-07", mins(29), 30)], 30, "2026-07-07", thresholds, earned);
+    expect(p.unlockedCount).toBe(3);
     expect(p.pendingCatUnlocks).toEqual([]);
+  });
+});
+
+describe("bankedPoints / pendingPoints", () => {
+  it("banks only days before today", () => {
+    const h = [day("2026-07-05", 0, 30), day("2026-07-06", mins(15), 30), day("2026-07-07", 0, 30)];
+    expect(bankedPoints(h, "2026-07-07", 30)).toBe(50 + 25);
+    expect(pendingPoints(h, "2026-07-07", 30)).toBe(50);
+  });
+  it("pends the full day when today has no record yet", () => {
+    expect(pendingPoints([day("2026-07-06", 0, 30)], "2026-07-07", 30)).toBe(MAX_POINTS_PER_DAY);
   });
 });

@@ -111,7 +111,7 @@ export function OnboardingFlow({
         <View style={{ width, height }} className="px-6 pb-3 pt-3">
           <Header index={0} onSkip={() => goTo(PAGES - 1)} />
           <View className="flex-1 items-center justify-center">
-            <KitCatClock usedMinutes={18} limitMinutes={30} />
+            <KitCatClock usedMinutes={6} limitMinutes={30} />
             <Text
               className="mt-2 text-[11px] font-semibold uppercase text-dim"
               style={{ letterSpacing: 0.5 }}

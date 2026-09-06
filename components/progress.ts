@@ -89,10 +89,31 @@ export type ProgressSeen = {
   lastPointsCelebrated: number;
 };
 
+/**
+ * Points from days that are over. Today is never banked: its value keeps
+ * shrinking as you scroll, so counting it would hand out a full day's points
+ * the moment the app is installed and then take them back all afternoon.
+ */
+export function bankedPoints(history: WiltDay[], today: string, currentLimit: number): number {
+  return lifetimePoints(history.filter((d) => d.date < today), currentLimit);
+}
+
+/**
+ * What today is on course to add: its points as they stand right now, or the
+ * full daily maximum when nothing has been recorded yet. Banked at midnight.
+ */
+export function pendingPoints(history: WiltDay[], today: string, currentLimit: number): number {
+  const live = history.find((d) => d.date === today);
+  return live ? pointsForDay(live, currentLimit) : MAX_POINTS_PER_DAY;
+}
+
 export type Progress = {
   streak: number;
   best: number;
+  /** Lifetime points from completed days. Only these unlock cats. */
   points: number;
+  /** Today's points so far, banked at midnight. */
+  pendingPoints: number;
   limit: number;
   nextRung: number | null;
   unlockedCount: number;
@@ -112,13 +133,13 @@ export function computeProgress(
   seen: ProgressSeen
 ): Progress {
   const { current: streak, best } = streaks(history, today, currentLimit);
-  const points = lifetimePoints(history, currentLimit);
+  const points = bankedPoints(history, today, currentLimit);
+  const pending = pendingPoints(history, today, currentLimit);
   const nextRung = nextRungBelow(currentLimit);
 
-  // Today's contribution shrinks in real time as you scroll, so the running
-  // total goes down as well as up. Unlocking has to be one-way: gate the
-  // gallery on the high-water mark, never on the live total, or a cat you
-  // already earned would re-lock mid-afternoon.
+  // Banked points only ever grow, so unlocking is one-way by construction. The
+  // celebrated high-water mark is still honoured for anyone who unlocked under
+  // the old rule, when today's live points counted.
   const unlockedAt = Math.max(points, seen.lastPointsCelebrated);
   const unlockedCount = catThresholds.filter((t) => t <= unlockedAt).length;
 
@@ -131,5 +152,15 @@ export function computeProgress(
     .filter((t) => t > seen.lastPointsCelebrated && t <= points)
     .sort((a, b) => a - b);
 
-  return { streak, best, points, limit: currentLimit, nextRung, unlockedCount, pendingLevelDown, pendingCatUnlocks };
+  return {
+    streak,
+    best,
+    points,
+    pendingPoints: pending,
+    limit: currentLimit,
+    nextRung,
+    unlockedCount,
+    pendingLevelDown,
+    pendingCatUnlocks,
+  };
 }

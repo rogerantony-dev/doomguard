@@ -281,6 +281,7 @@ export default function App() {
                 streak={progress.streak}
                 best={progress.best}
                 points={progress.points}
+                pendingPoints={progress.pendingPoints}
                 onPress={() => setScreen("history")}
               />
               <Dashboard
