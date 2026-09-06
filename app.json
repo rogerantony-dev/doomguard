@@ -2,7 +2,7 @@
   "expo": {
     "name": "Wilt",
     "slug": "wilt",
-    "version": "1.9.0",
+    "version": "1.9.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -11,7 +11,7 @@
     },
     "android": {
       "package": "com.rogerantony.wilt",
-      "versionCode": 12,
+      "versionCode": 13,
       "allowBackup": false,
       "blockedPermissions": [
         "android.permission.READ_EXTERNAL_STORAGE",
@@ -34,7 +34,7 @@
     "owner": "rogerantony",
     "extra": {
       "eas": {
-        "projectId": "2d8eccb0-5208-4303-9512-3ca39e127e4a"
+        "projectId": "f1cd9960-3a6a-435f-a5e8-985783caf394"
       }
     }
   }
