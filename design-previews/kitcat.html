@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wilt: the clock cat</title>
+<style>
+  :root { --ink:#0D0D0C; --panel:#1A1A18; --bone:#F2F1EC; --ash:#9A9A92; --dim:#62625B; --green:#38C786; --amber:#E0913C; --red:#D2542F; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--ink); color:var(--bone); font:14px/1.5 -apple-system,"SF Pro Text",Roboto,system-ui,sans-serif; padding:32px 28px 80px; }
+  h1 { font-size:22px; font-weight:600; letter-spacing:-.3px; margin:0 0 4px; }
+  .sub { color:var(--ash); margin:0 0 24px; max-width:640px; }
+  h2 { font-size:11px; font-weight:600; letter-spacing:1.6px; text-transform:uppercase; color:var(--dim); margin:34px 0 14px; }
+  .control { position:sticky; top:0; z-index:5; background:rgba(13,13,12,.92); backdrop-filter:blur(8px); padding:14px 0 12px; border-bottom:1px solid rgba(242,241,236,.08); }
+  .control .row { display:flex; align-items:center; gap:18px; max-width:760px; }
+  input[type=range] { flex:1; accent-color:var(--green); }
+  .readout { min-width:200px; text-align:right; color:var(--ash); font-variant-numeric:tabular-nums; } .readout b { color:var(--bone); }
+  .panels { display:grid; grid-template-columns:repeat(3, 300px); gap:28px; }
+  .phone { width:300px; border-radius:30px; background:var(--ink); border:1px solid rgba(242,241,236,.12); padding:26px 22px 30px; }
+  .brand { display:flex; align-items:center; gap:8px; font-size:12px; font-weight:600; color:var(--bone); }
+  .brand i { width:6px; height:6px; border-radius:50%; background:var(--green); display:inline-block; }
+  .big { margin-top:26px; font-size:44px; font-weight:700; letter-spacing:-1px; line-height:1; }
+  .big small { font-size:15px; font-weight:400; color:var(--ash); letter-spacing:0; margin-left:8px; }
+  .cat { display:flex; flex-direction:column; align-items:center; margin-top:26px; }
+  .cat svg { width:150px; height:182px; overflow:visible; }
+  .left { margin-top:12px; font-size:13px; font-weight:700; letter-spacing:1.2px; } .left span { color:var(--dim); }
+  .vibe { margin-top:26px; font-size:18px; font-weight:600; } .vibe p { margin:4px 0 0; font-size:13px; color:var(--ash); font-weight:400; }
+  .label { text-align:center; color:var(--ash); font-size:12px; margin-top:10px; }
+  .notes { max-width:760px; color:var(--ash); } .notes li { margin:6px 0; } .notes b { color:var(--bone); font-weight:600; }
+  @keyframes dart { 0%,100% { transform:translateX(-2.5px);} 50% { transform:translateX(2.5px);} }
+  @keyframes swing { 0%,100% { transform:rotate(-15deg);} 50% { transform:rotate(15deg);} }
+  .eyes { animation: dart 2.6s ease-in-out infinite; }
+  .tail { transform-origin:112px 120px; animation: swing 1.7s ease-in-out infinite; }
+  .headwrap .eyes { animation: dart 2.6s ease-in-out infinite; }
+</style>
+</head>
+<body>
+<h1>The clock cat</h1>
+<p class="sub">The home screen's Kit-Cat clock, with the same kitten that now lives in the pill and the widget. Left is today's cat. Middle is the proposal, fresh. Right is the proposal at the slider's minutes, so you can see it wilt in place on the dashboard.</p>
+
+<div class="control"><div class="row">
+  <input id="mins" type="range" min="0" max="36" value="24" step="1">
+  <div class="readout"><b id="m">24 min</b> of a 30 min limit</div>
+</div></div>
+
+<h2>On the dashboard</h2>
+<div class="panels">
+  <div>
+    <div class="phone" id="p-old"></div>
+    <div class="label">Today</div>
+  </div>
+  <div>
+    <div class="phone" id="p-fresh"></div>
+    <div class="label">Proposed, fresh</div>
+  </div>
+  <div>
+    <div class="phone" id="p-live"></div>
+    <div class="label">Proposed, at the slider</div>
+  </div>
+</div>
+
+<h2>Notes</h2>
+<ul class="notes">
+  <li><b>Same cat everywhere.</b> The head is the pill and widget drawing, scaled onto the clock body. Nose and bow tie still take the readout colour (green, amber, red).</li>
+  <li><b>It still moves.</b> Eyes dart and the tail keeps time, as today. In the app both are driven by the existing matrix animations; nothing new is needed there.</li>
+  <li><b>Decay is optional.</b> If you'd rather the home cat stay cute all day, the middle panel is the whole change. If it should rot with the day like the pill, the right panel is it.</li>
+</ul>
+
+<script src="rot-cat.js"></script>
+<script>
+const LIMIT = 30;
+const tone = (used) => { const left = Math.max(0, LIMIT - used); return left <= 0 ? 'var(--red)' : left / LIMIT <= 0.5 ? 'var(--amber)' : 'var(--green)'; };
+const K_FUR='#2A2A27', K_FACE='#201F1D', K_BONE='#F2F1EC', K_ASH='#9A9A92', K_DIM='#62625B', K_INK='#0D0D0C';
+
+function clockBody(color) {
+  return `
+    <circle cx="75" cy="132" r="40" fill="${K_FACE}" stroke="${K_ASH}" stroke-width="2.5"/>
+    <line x1="75" y1="98" x2="75" y2="104" stroke="${K_DIM}" stroke-width="2" stroke-linecap="round"/>
+    <line x1="109" y1="132" x2="103" y2="132" stroke="${K_DIM}" stroke-width="2" stroke-linecap="round"/>
+    <line x1="75" y1="166" x2="75" y2="160" stroke="${K_DIM}" stroke-width="2" stroke-linecap="round"/>
+    <line x1="41" y1="132" x2="47" y2="132" stroke="${K_DIM}" stroke-width="2" stroke-linecap="round"/>
+    <line x1="75" y1="132" x2="75" y2="110" stroke="${K_BONE}" stroke-width="3" stroke-linecap="round"/>
+    <line x1="75" y1="132" x2="92" y2="139" stroke="${K_BONE}" stroke-width="3" stroke-linecap="round"/>
+    <circle cx="75" cy="132" r="3.5" fill="${color}"/>
+    <g class="tail"><path d="M112 120 q24 8 20 44" stroke="${K_FUR}" stroke-width="7" stroke-linecap="round" fill="none"/></g>`;
+}
+
+function oldCat(color) {
+  return `<svg viewBox="0 0 150 182">
+    <path d="M50 30 L42 6 L70 26 Z" fill="${K_FUR}"/><path d="M100 30 L108 6 L80 26 Z" fill="${K_FUR}"/>
+    <circle cx="75" cy="46" r="32" fill="${K_FUR}"/>
+    <g class="eyes"><ellipse cx="64" cy="42" rx="6" ry="8" fill="${K_BONE}"/><ellipse cx="86" cy="42" rx="6" ry="8" fill="${K_BONE}"/><circle cx="64" cy="44" r="2.6" fill="${K_INK}"/><circle cx="86" cy="44" r="2.6" fill="${K_INK}"/></g>
+    <path d="M71 58 L79 58 L75 62 Z" fill="${color}"/>
+    <path d="M60 84 L75 74 L90 84 L75 90 Z" fill="${color}"/>
+    ${clockBody(color)}
+  </svg>`;
+}
+
+// The shared head, scaled from its 256 box onto the clock: r=80 at (128,128) -> r=34 at (75,48).
+function newCat(t, color, id) {
+  const head = cat(t, { anim: false, id }).replace(/^<svg[^>]*>/, '').replace(/<\/svg>\s*$/, '');
+  const s = 34 / 80, tx = 75 - 128 * s, ty = 48 - 128 * s;
+  const over = t >= 1;
+  return `<svg viewBox="0 0 150 182">
+    <g class="headwrap" transform="translate(${tx.toFixed(2)} ${ty.toFixed(2)}) scale(${s.toFixed(4)})">${head}</g>
+    <path d="M60 92 L75 82 L90 92 L75 98 Z" fill="${over ? '#8A8574' : color}"/>
+    ${clockBody(color)}
+  </svg>`;
+}
+
+function phone(used, svg) {
+  const left = Math.max(0, LIMIT - used); const color = tone(used);
+  const vibe = used < 1 ? ["Clock's clean.", 'No time wasted yet today. Look at you.'] : used < 15 ? ["Clock's ticking.", 'The scroll is starting to pull.'] : used < 30 ? ["Time's slipping.", "That's a real chunk of today. Stretch?"] : ['Deep in it.', 'Over the limit. Reels are closed.'];
+  return `<div class="brand"><i></i>Wilt</div>
+    <div class="big" style="color:${used >= LIMIT ? 'var(--red)' : 'var(--amber)'}">${used}<small>min wasted today</small></div>
+    <div class="cat">${svg}<div class="left"><span style="color:${color}">${left} MIN</span> <span>LEFT</span></div></div>
+    <div class="vibe">${vibe[0]}<p>${vibe[1]}</p></div>`;
+}
+
+const slider = document.getElementById('mins');
+function render() {
+  const used = +slider.value, t = used / LIMIT;
+  document.getElementById('m').textContent = `${used} min`;
+  document.getElementById('p-old').innerHTML = phone(used, oldCat(tone(used)));
+  document.getElementById('p-fresh').innerHTML = phone(0, newCat(0.02, tone(0), 'f'));
+  document.getElementById('p-live').innerHTML = phone(used, newCat(t, tone(used), 'l'));
+}
+const q = new URLSearchParams(location.search).get('m'); if (q !== null) slider.value = q;
+slider.addEventListener('input', render); render();
+</script>
+</body>
+</html>

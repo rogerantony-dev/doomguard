@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, type ReactNode } from "react";
 import { Text, View } from "react-native";
 import Animated, {
   Easing,
@@ -8,7 +8,9 @@ import Animated, {
   withRepeat,
   withTiming,
 } from "react-native-reanimated";
-import Svg, { Circle, Ellipse, G, Line, Path } from "react-native-svg";
+import Svg, { Circle, G, Line, Path } from "react-native-svg";
+import { CatHead } from "./CatHead";
+import { decayStage, stageT } from "./catdecay";
 import { rotateAbout, translateX } from "./catmatrix";
 import { C } from "./console";
 import { timeLeftState } from "./timeleft";
@@ -25,10 +27,18 @@ function useMountEffect(effect: () => void) {
   useEffect(effect, []);
 }
 
+// The head is drawn in CatHead's 256-box (r=80 at 128,128) and scaled onto the
+// clock so that it sits at r=34 around (75,48), the same spot the old head had.
+const HEAD_SCALE = 34 / 80;
+const HEAD_TX = 75 - 128 * HEAD_SCALE;
+const HEAD_TY = 48 - 128 * HEAD_SCALE;
+
 /**
  * Kit-Cat wall-clock read-out of the reels time you have left today: the number
- * reddens as the budget runs down, the eyes dart and the tail keeps time. Replaces
- * the minute-wall on the guilt dashboard.
+ * reddens as the budget runs down, the eyes dart and the tail keeps time. The
+ * head is the same cat as the pill and the widget, and rots through the same
+ * six stages as the day's minutes climb. Replaces the minute-wall on the guilt
+ * dashboard.
  */
 export function KitCatClock({
   usedMinutes,
@@ -38,6 +48,8 @@ export function KitCatClock({
   limitMinutes: number;
 }) {
   const { minutesLeft, color } = timeLeftState(usedMinutes, limitMinutes);
+  const stage = decayStage(usedMinutes, limitMinutes);
+  const t = stageT(stage);
   const reduceMotion = useReducedMotion();
 
   const dart = useSharedValue(0.5); // 0..1 -> eyes glance left..right (0.5 = centred)
@@ -61,8 +73,10 @@ export function KitCatClock({
   // the eyes and tail have to be driven through matrices. See catmatrix.ts.
   // `matrix` is a real native prop on RNSVGGroup but absent from the public
   // GProps types, so the returns are cast past the type gap.
+  // The eyes live inside the scaled head group, so the dart is in head units
+  // (about 6 there is the 2.5 it used to be on the clock).
   const eyeProps = useAnimatedProps(() => ({
-    matrix: translateX(-2.5 + dart.value * 5),
+    matrix: translateX((-2.5 + dart.value * 5) / HEAD_SCALE),
   })) as never;
   const tailProps = useAnimatedProps(() => ({
     matrix: rotateAbout(-15 + swing.value * 30, 112, 120),
@@ -71,21 +85,15 @@ export function KitCatClock({
   return (
     <View className="items-center">
       <Svg width={150} height={182} viewBox="0 0 150 182">
-        {/* ears */}
-        <Path d="M50 30 L42 6 L70 26 Z" fill={FUR} />
-        <Path d="M100 30 L108 6 L80 26 Z" fill={FUR} />
-        {/* head */}
-        <Circle cx={75} cy={46} r={32} fill={FUR} />
-        {/* eyes — glance side to side */}
-        <AnimatedG animatedProps={eyeProps}>
-          <Ellipse cx={64} cy={42} rx={6} ry={8} fill={C.bone} />
-          <Ellipse cx={86} cy={42} rx={6} ry={8} fill={C.bone} />
-          <Circle cx={64} cy={44} r={2.6} fill={C.ink} />
-          <Circle cx={86} cy={44} r={2.6} fill={C.ink} />
-        </AnimatedG>
-        {/* nose + bow tie pick up the live tone colour */}
-        <Path d="M71 58 L79 58 L75 62 Z" fill={color} />
-        <Path d="M60 84 L75 74 L90 84 L75 90 Z" fill={color} />
+        {/* head: the shared rotting cat, scaled onto the clock */}
+        <G transform={`translate(${HEAD_TX} ${HEAD_TY}) scale(${HEAD_SCALE})`}>
+          <CatHead
+            t={t}
+            eyes={(children: ReactNode) => <AnimatedG animatedProps={eyeProps}>{children}</AnimatedG>}
+          />
+        </G>
+        {/* bow tie picks up the live tone colour; bone once the cat is gone */}
+        <Path d="M60 92 L75 82 L90 92 L75 98 Z" fill={stage >= 6 ? "#8A8574" : color} />
         {/* clock face */}
         <Circle cx={75} cy={132} r={40} fill={FACE} stroke={C.ash} strokeWidth={2.5} />
         {/* 12 / 3 / 6 / 9 ticks */}
