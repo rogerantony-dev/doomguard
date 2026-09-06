@@ -7,9 +7,11 @@ import type { ImageSourcePropType } from "react-native";
  * gallery never depends on a live URL. Add a cat by appending { src, unlockAt }
  * and dropping its image in assets/cats.
  *
- * The list order IS the unlock order. The nudge card and the block cover show
- * the drawn cat rather than these photos; App.tsx still mirrors the unlocked
- * count into prefs for the native side.
+ * The list order IS the unlock order, and the native side indexes into it by
+ * position (`wilt_cat_1..N` must line up with cat_1..N here; bump catCount in
+ * ReelAccessibilityService.kt when adding one). App.tsx mirrors the unlocked
+ * count into prefs so the block cover and the nudge only ever show cats
+ * already earned, picked at random.
  */
 export type Cat = { src: ImageSourcePropType; unlockAt: number };
 
