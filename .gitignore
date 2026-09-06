@@ -60,3 +60,6 @@ design-previews/out-store/
 
 # Play Console demo recording (regenerate from a device; too large for git)
 docs/store/*.mp4
+
+# EAS local signing credentials (keystore lives in ~/.wilt, never in the repo)
+credentials.json

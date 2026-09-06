@@ -250,7 +250,8 @@ both** and bump the date in each.
 - [ ] Demo video re-recorded as Wilt (the existing one is Unhook-branded)
 - [x] EAS project relinked under the `wilt` slug (`@rogerantony/wilt`)
 - [ ] Complete **Android developer verification**, or publishing is blocked
-- [ ] Build a signed AAB: `eas build --platform android --profile production`
+- [ ] Build a signed AAB: `eas build --platform android --profile production --non-interactive`
+      (first build started 6 September 2026; signing uses the local upload key, see below)
 - [ ] Upload the demo video to YouTube as unlisted, keep the link
 - [ ] Complete Data Safety, content rating, target audience
 - [ ] Submit the Accessibility API Permissions Declaration with the video link
@@ -259,7 +260,14 @@ both** and bump the date in each.
 
 Do not upload a locally built APK. `android/app/build.gradle` still signs the
 release buildType with the debug keystore, which is fine for sideloading and
-rejected by Play. EAS manages the real upload key.
+rejected by Play. The Play upload key is a separate keystore at
+`~/.wilt/upload.keystore` (password in `~/.wilt/upload.password`, alias
+`upload`), handed to EAS through `credentials.json` in the repo root, which is
+gitignored, with `credentialsSource: local` in `eas.json`. Back up both files
+in `~/.wilt`; Play App Signing holds the real app signing key, so a lost upload
+key can be reset from Play Console > App integrity, but it is a support ticket.
+Upload key SHA-256:
+`23:31:AE:2A:C3:58:D4:89:40:97:EE:05:8C:41:37:08:1E:61:BF:C3:D9:F7:9C:CF:AE:B7:E3:2D:30:3B:2A:E2`.
 
 **The 12-tester rule is the long pole.** Personal developer accounts created after
 13 November 2023 cannot publish to production until they have run a closed test
