@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Unhook: the cat rots</title>
+<style>
+  :root {
+    --ink: #0D0D0C; --ink2: #141413; --panel: #1A1A18; --panelhi: #2C2C29;
+    --bone: #F2F1EC; --ash: #9A9A92; --dim: #62625B;
+    --green: #38C786; --amber: #E0913C; --red: #D2542F;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--ink); color: var(--bone);
+    font: 14px/1.5 -apple-system, "SF Pro Text", Roboto, system-ui, sans-serif;
+    padding: 32px 28px 80px;
+  }
+  h1 { font-size: 22px; font-weight: 600; letter-spacing: -0.3px; margin: 0 0 4px; }
+  .sub { color: var(--ash); margin: 0 0 28px; max-width: 640px; }
+  h2 { font-size: 11px; font-weight: 600; letter-spacing: 1.6px; text-transform: uppercase; color: var(--dim); margin: 40px 0 14px; }
+
+  /* slider */
+  .control { position: sticky; top: 0; z-index: 5; background: rgba(13,13,12,.92); backdrop-filter: blur(8px);
+    padding: 14px 0 12px; border-bottom: 1px solid rgba(242,241,236,.08); margin-bottom: 8px; }
+  .control .row { display: flex; align-items: center; gap: 18px; max-width: 760px; }
+  input[type=range] { flex: 1; accent-color: var(--green); }
+  .readout { font-variant-numeric: tabular-nums; min-width: 190px; text-align: right; color: var(--ash); }
+  .readout b { color: var(--bone); font-weight: 600; }
+  .stage-name { min-width: 120px; color: var(--green); font-weight: 600; }
+
+  /* stage strip */
+  .strip { display: grid; grid-template-columns: repeat(6, 1fr); gap: 14px; max-width: 1040px; }
+  .card { background: var(--panel); border: 1px solid rgba(242,241,236,.06); border-radius: 18px; padding: 18px 12px 14px; text-align: center; }
+  .card svg { width: 110px; height: 110px; }
+  .card .t { font-size: 12px; color: var(--ash); margin-top: 8px; }
+  .card .n { font-size: 13px; font-weight: 600; margin-top: 2px; }
+
+  /* phone with reels + pill */
+  .contexts { display: grid; grid-template-columns: 300px 1fr; gap: 36px; max-width: 1040px; align-items: start; }
+  .phone { width: 300px; height: 560px; border-radius: 34px; background: #000; border: 1px solid rgba(242,241,236,.12);
+    position: relative; overflow: hidden; }
+  .reel { position: absolute; inset: 0; background:
+    radial-gradient(120% 60% at 30% 70%, #3a2a2a 0%, #101010 60%),
+    linear-gradient(180deg, #2a2320, #0b0b0b); }
+  .reel .ui { position: absolute; left: 14px; right: 14px; bottom: 26px; color: rgba(242,241,236,.55); font-size: 11px; }
+  .reel .ui .bar { height: 8px; width: 60%; border-radius: 4px; background: rgba(242,241,236,.12); margin: 6px 0; }
+  .reel .side { position: absolute; right: 12px; bottom: 90px; display: flex; flex-direction: column; gap: 16px; }
+  .reel .side i { display: block; width: 26px; height: 26px; border-radius: 50%; background: rgba(242,241,236,.12); }
+  .statusbar { position: absolute; top: 10px; left: 22px; right: 22px; display: flex; justify-content: space-between; font-size: 11px; color: rgba(242,241,236,.6); }
+  .pill { position: absolute; top: 48px; left: 50%; transform: translateX(-50%);
+    display: flex; align-items: center; gap: 10px; padding: 8px 18px 8px 12px; border-radius: 999px;
+    background: var(--panel); border: 1px solid rgba(242,241,236,.10); box-shadow: 0 6px 18px rgba(0,0,0,.5); }
+  .pill svg { width: 30px; height: 30px; }
+  .pill .time { font-weight: 700; font-size: 15px; letter-spacing: .1px; font-variant-numeric: tabular-nums; }
+
+  /* widget on a home screen */
+  .home { border-radius: 28px; padding: 26px 22px; background:
+    radial-gradient(80% 60% at 70% 10%, #24302a 0%, transparent 60%),
+    linear-gradient(160deg, #1b1d22, #0d0e12 70%); border: 1px solid rgba(242,241,236,.08); }
+  .home .apps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; margin-top: 22px; }
+  .home .apps i { display: block; height: 52px; border-radius: 14px; background: rgba(242,241,236,.08); }
+  .widget { display: flex; align-items: center; gap: 12px; padding: 20px; border-radius: 22px;
+    background: var(--panel); border: 1px solid rgba(242,241,236,.08); width: 372px; height: 150px; position: relative; overflow: hidden; }
+  .widget .left { flex: 1; min-width: 0; }
+  .widget .limit, .widget .counts { white-space: nowrap; }
+  .widget .brand { font-size: 11px; font-weight: 700; letter-spacing: 1.8px; color: var(--ash); }
+  .widget .time { margin-top: 8px; display: flex; align-items: baseline; gap: 9px; white-space: nowrap; }
+  .widget .time b { font-size: 36px; font-weight: 700; color: var(--amber); letter-spacing: -0.5px; font-variant-numeric: tabular-nums; line-height: 1; }
+  .widget .time span { color: var(--ash); font-size: 13px; }
+  .widget .limit { margin-top: 6px; font-size: 11px; font-weight: 700; letter-spacing: .4px; color: var(--amber); }
+  .widget .counts { margin-top: 14px; font-size: 14px; color: var(--ash); display: flex; gap: 18px; }
+  .widget svg { width: 76px; height: 76px; flex: none; }
+
+  .notes { max-width: 760px; color: var(--ash); }
+  .notes li { margin: 6px 0; }
+  .notes b { color: var(--bone); font-weight: 600; }
+
+  @keyframes orbit { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+  @keyframes rise { 0% { transform: translateY(0); opacity: .0; } 30% { opacity: .55; } 100% { transform: translateY(-9px); opacity: 0; } }
+  @keyframes drip { 0% { transform: translateY(0) scaleY(.6); opacity: 0; } 20% { opacity: 1; } 100% { transform: translateY(14px) scaleY(1); opacity: 0; } }
+  .fly { transform-origin: 128px 118px; animation: orbit 2.6s linear infinite; }
+  .fly.b { animation-duration: 3.4s; animation-direction: reverse; }
+  .fly.c { animation-duration: 2.1s; }
+  .stink { animation: rise 2.2s ease-out infinite; }
+  .stink.b { animation-delay: .7s; }
+  .stink.c { animation-delay: 1.4s; }
+  .drop { animation: drip 2.4s ease-in infinite; }
+</style>
+</head>
+<body>
+
+<h1>The cat rots</h1>
+<p class="sub">One cat, drawn from the minutes you have burned against your limit. Instead of swapping between five expressions, it decays continuously: fur dulls and greens, ears sag, mould spreads, an eye clouds, the skull shows through, and once you are over the limit there is only the skull. Drag the slider.</p>
+
+<div class="control">
+  <div class="row">
+    <input id="mins" type="range" min="0" max="72" value="14" step="1">
+    <div class="stage-name" id="stage">Fresh</div>
+    <div class="readout"><b id="m">14 min</b> of a 60 min limit</div>
+  </div>
+</div>
+
+<h2>Stages the app would ship (6 frames)</h2>
+<div class="strip" id="strip"></div>
+
+<h2>In place</h2>
+<div class="contexts">
+  <div class="phone">
+    <div class="reel">
+      <div class="statusbar"><span>9:41</span><span>▮▮▮</span></div>
+      <div class="side"><i></i><i></i><i></i><i></i></div>
+      <div class="ui">@someone · Original audio<div class="bar"></div><div class="bar" style="width:40%"></div></div>
+    </div>
+    <div class="pill"><span id="pillcat"></span><span class="time" id="pilltime">14m</span></div>
+  </div>
+  <div>
+    <div class="home">
+      <div class="widget">
+        <div class="left">
+          <div class="brand">UNHOOK</div>
+          <div class="time"><b id="wtime">14m</b><span>wasted today</span></div>
+          <div class="limit" id="wlimit">46 min left of your 60-min limit</div>
+          <div class="counts"><span>23 reels</span><span>4 shorts</span></div>
+        </div>
+        <span id="widgetcat"></span>
+      </div>
+      <div class="apps"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+    </div>
+    <ul class="notes">
+      <li><b>Continuous in the design, stepped in the build.</b> The pill and the widget both draw from PNGs (the widget must; RemoteViews cannot draw), so the app would ship 6 frames instead of 5, one per band above. The strip is exactly those frames.</li>
+      <li><b>Colour follows the cat.</b> The pill's time stays bone until the mould starts, goes amber as the skull shows, and red once over. The widget already does amber then red; it keeps that.</li>
+      <li><b>Motion is optional.</b> Flies and stink lines are shown here to sell it. On device they would only exist in the pill (a custom View could animate; the widget cannot). Without them the frames still read.</li>
+      <li><b>Nothing comes back until midnight.</b> Decay only moves one way inside a day, same as the counters. Grace minutes push the threshold, so the cat pauses rather than heals.</li>
+    </ul>
+  </div>
+</div>
+
+<script src="rot-cat.js"></script>
+<script>
+const LIMIT = 60;
+// --- page wiring ---
+const stripFrames = [
+  [0.05, 'Fresh', '0 to 35%'], [0.5, 'Wilting', '35 to 65%'], [0.72, 'Mouldy', '65 to 82%'],
+  [0.87, 'Rotting', '82 to 92%'], [0.96, 'Nearly gone', '92 to 100%'], [1.0, 'Gone', 'over the limit'],
+];
+const strip = document.getElementById('strip');
+stripFrames.forEach(([t, n, lab], i) => {
+  const d = document.createElement('div');
+  d.className = 'card';
+  d.innerHTML = `${cat(t, { anim: false, id: 's' + i })}<div class="t">${lab}</div><div class="n">${n}</div>`;
+  strip.appendChild(d);
+});
+
+const slider = document.getElementById('mins');
+function fmt(m) { return m < 60 ? `${m}m` : `${Math.floor(m / 60)}h ${m % 60}m`; }
+function render() {
+  const mins = +slider.value;
+  const t = mins / LIMIT;
+  document.getElementById('m').textContent = `${mins} min`;
+  document.getElementById('stage').textContent = stageName(t);
+  document.getElementById('stage').style.color = t >= 1 ? 'var(--red)' : t >= 0.65 ? 'var(--amber)' : 'var(--green)';
+  document.getElementById('pillcat').innerHTML = cat(t, { id: 'p' });
+  document.getElementById('widgetcat').innerHTML = cat(t, { id: 'w' });
+  const pt = document.getElementById('pilltime');
+  pt.textContent = fmt(mins);
+  pt.style.color = t >= 1 ? 'var(--red)' : t >= 0.65 ? 'var(--amber)' : 'var(--bone)';
+  const over = mins > LIMIT;
+  const col = over ? 'var(--red)' : 'var(--amber)';
+  const wt = document.getElementById('wtime'); wt.textContent = fmt(mins); wt.style.color = col;
+  const wl = document.getElementById('wlimit');
+  wl.textContent = over ? `${mins - LIMIT} min over your ${LIMIT}-min limit` : `${LIMIT - mins} min left of your ${LIMIT}-min limit`;
+  wl.style.color = col;
+}
+const q = new URLSearchParams(location.search).get('m');
+if (q !== null) slider.value = q;
+slider.addEventListener('input', render);
+render();
+</script>
+</body>
+</html>

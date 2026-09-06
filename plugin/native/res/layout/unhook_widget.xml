@@ -4,7 +4,7 @@
   layout/widget classes, so this stays nested LinearLayouts + TextViews. The
   amber "time wasted" readout and budget line mirror the in-app dashboard; the
   service recolours the time + limit red once the daily limit is blown. The cat
-  on the right shifts expression (happy -> drained) with how close you are.
+  on the right rots (fresh -> skull) with how close you are; see CatDecay.kt.
 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/unhook_widget_root"
@@ -101,5 +101,5 @@
         android:layout_marginStart="12dp"
         android:scaleType="fitCenter"
         android:src="@drawable/unhook_catface_1"
-        android:contentDescription="Cat mood" />
+        android:contentDescription="Cat, decaying with time spent" />
 </LinearLayout>
